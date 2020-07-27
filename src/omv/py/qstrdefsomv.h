@@ -556,7 +556,9 @@ Q(alpha)
 // duplicate Q(mask)
 Q(hint)
 Q(IMAGE_HINT_BILINEAR)
+Q(IMAGE_HINT_BICUBIC)
 Q(IMAGE_HINT_CENTER)
+Q(IMAGE_HINT_AREA)
 
 // Draw Keypoints
 Q(draw_keypoints)

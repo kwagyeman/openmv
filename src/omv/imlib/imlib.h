@@ -962,6 +962,17 @@ void imlib_debayer_image_to_grayscale(image_t *dst, image_t *src);
 void imlib_debayer_line_to_rgb565(int x_start, int x_end, int y_row, uint16_t *dst_row_ptr, image_t *src);
 void imlib_debayer_image_to_rgb565(image_t *dst, image_t *src);
 
+// JPEG Image Processing
+#if (OMV_HARDWARE_JPEG == 1)
+void imlib_jpeg_compress_init();
+void imlib_jpeg_compress_deinit();
+#endif
+bool jpeg_compress(image_t *src, image_t *dst, int quality, bool realloc);
+int jpeg_clean_trailing_bytes(int bpp, uint8_t *data);
+void imlib_jpeg_decompress_image_to_binary(image_t *dst, image_t *src);
+void imlib_jpeg_decompress_image_to_grayscale(image_t *dst, image_t *src);
+void imlib_jpeg_decompress_image_to_rgb565(image_t *dst, image_t *src);
+
 /* Color space functions */
 int8_t imlib_rgb565_to_l(uint16_t pixel);
 int8_t imlib_rgb565_to_a(uint16_t pixel);
@@ -978,13 +989,6 @@ bool bmp_read_geometry(FIL *fp, image_t *img, const char *path, bmp_read_setting
 void bmp_read_pixels(FIL *fp, image_t *img, int n_lines, bmp_read_settings_t *rs);
 void bmp_read(image_t *img, const char *path);
 void bmp_write_subimg(image_t *img, const char *path, rectangle_t *r);
-#if (OMV_HARDWARE_JPEG == 1)
-void imlib_jpeg_compress_init();
-void imlib_jpeg_compress_deinit();
-#endif
-bool jpeg_decompress(image_t *src, image_t *dst);
-bool jpeg_compress(image_t *src, image_t *dst, int quality, bool realloc);
-int jpeg_clean_trailing_bytes(int bpp, uint8_t *data);
 void jpeg_read_geometry(FIL *fp, image_t *img, const char *path, jpg_read_settings_t *rs);
 void jpeg_read_pixels(FIL *fp, image_t *img);
 void jpeg_read(image_t *img, const char *path);

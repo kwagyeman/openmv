@@ -68,6 +68,11 @@ endif
 
 ifeq ($(OMV_ENABLE_CM4), 1)
 CFLAGS     += -DM4_APP_ADDR=$(M4_APP_ADDR)
+ifeq ($(DEBUG), 1)
+CM4_CFLAGS += -Og -ggdb3 -Wno-maybe-uninitialized
+else
+CM4_CFLAGS += -O2 -DNDEBUG
+endif
 CM4_CFLAGS += -std=gnu99 -Wall -Werror -Warray-bounds -mthumb -nostartfiles -fdata-sections -ffunction-sections
 CM4_CFLAGS += -D$(MCU) -D$(CFLAGS_MCU) -D$(ARM_MATH) -DARM_NN_TRUNCATE -DCORE_CM4\
               -fsingle-precision-constant -Wdouble-promotion -mcpu=cortex-m4 -mtune=cortex-m4 -mfpu=$(FPU) -mfloat-abi=hard
@@ -161,6 +166,7 @@ FIRM_OBJ += $(addprefix $(BUILD)/$(OMV_DIR)/modules/,   \
 FIRM_OBJ += $(addprefix $(BUILD)/$(OMV_DIR)/imlib/, \
 	agast.o                     \
 	apriltag.o                  \
+	bayer.o                     \
 	binary.o                    \
 	blob.o                      \
 	bmp.o                       \
@@ -626,6 +632,10 @@ endif
 # This target generates the uvc, bootloader and firmware images.
 $(OPENMV): $(BOOTLOADER) $(UVC) $(CM4) $(FIRMWARE)
 ifeq ($(OMV_ENABLE_BL), 1)
+	# Generate a contiguous firmware image for factory programming
+	$(OBJCOPY) -Obinary --pad-to=$(MAIN_APP_ADDR) --gap-fill=0xFF $(FW_DIR)/$(BOOTLOADER).elf $(FW_DIR)/$(BOOTLOADER)_padded.bin
+	$(CAT) $(FW_DIR)/$(BOOTLOADER)_padded.bin $(FW_DIR)/$(FIRMWARE).bin > $(FW_DIR)/$(OPENMV).bin
+	$(RM) $(FW_DIR)/$(BOOTLOADER)_padded.bin
 	$(SIZE) $(FW_DIR)/$(BOOTLOADER).elf
 endif
 	$(SIZE) $(FW_DIR)/$(FIRMWARE).elf

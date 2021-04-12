@@ -2681,9 +2681,8 @@ void imlib_draw_image(image_t *dst_img, image_t *src_img, int dst_x_start, int d
 
     // Special destination?
     bool is_bayer = src_img->bpp == IMAGE_BPP_BAYER;
-    bool is_jpeg = src_img->bpp == IMAGE_BPP_JPEG;
+    bool is_jpeg = src_img->bpp >= IMAGE_BPP_JPEG;
     bool is_bayer_or_jpeg = is_bayer || is_jpeg;
-
     // Best bpp to convert bayer/jpeg image to.
     int is_bayer_or_jpeg_bpp = (rgb_channel != -1) ? IMAGE_BPP_RGB565 :
                                (color_palette ? IMAGE_BPP_GRAYSCALE :

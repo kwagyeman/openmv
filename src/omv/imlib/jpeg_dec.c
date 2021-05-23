@@ -2034,55 +2034,40 @@ static void JPEGPutMCU1BitGray(JPEGIMAGE *pJPEG, int x, int y)
 
 static void JPEGPixelLE(uint16_t *pDest, int iY, int iCb, int iCr)
 {
-    int iCBB, iCBG, iCRG, iCRR;
-    int tmp;
-    unsigned short usPixel;
-
-    iCBB = 7258  * (iCb-0x80);
-    iCBG = -1409 * (iCb-0x80);
-    iCRG = -2925 * (iCr-0x80);
-    iCRR = 5742  * (iCr-0x80);
-    tmp = (iCBB + iY) >> 15;
-    tmp = __USAT16(tmp, 5); // saturate blue to unsigned 5-bits
-    usPixel = tmp;
-    tmp = ((iCBG + iCRG + iY) >> 14);
-    tmp = __USAT16(tmp, 6); // saturate green to unsigned 6-bits
-    usPixel |= (tmp << 5); // add green
-    tmp = ((iCRR + iY) >> 15);
-    tmp = __USAT16(tmp, 5); // saturate red to unsigned 5-bits
-    usPixel |= (tmp << 11);
-    pDest[0] = usPixel;
+    uint32_t ulPixel;
+    uint32_t ulCbCr = (iCb | (iCr << 16));
+    uint32_t ulTmp = -1409 | (-2925 << 16); // for green calc
+    ulCbCr = __SSUB16(ulCbCr, 0x00800080); // dual 16-bit subtraction
+    ulPixel = __SMLAD(ulCbCr, ulTmp, iY) >> 14; // G
+    ulPixel = __USAT16(ulPixel, 6) << 5; // range limit to 6 bits
+    ulTmp = __SMLAD(7258, ulCbCr, iY) >> 15; // Blue
+    ulTmp = __USAT16(ulTmp, 5); // range limit to 5 bits
+    ulPixel |= ulTmp; // now we have G + B
+    ulTmp = __SMLAD(5742, ulCbCr >> 16, iY) >> 15; // Red
+    ulTmp = __USAT16(ulTmp, 5); // range limit to 5 bits
+    ulPixel |= (ulTmp << 11); // now we have R + G + B
+    pDest[0] = (uint16_t)ulPixel;
 } /* JPEGPixelLE() */
 
 static void JPEGPixel2LE(uint16_t *pDest, int iY1, int iY2, int iCb, int iCr)
 {
-    int tmp, iCBB, iCBG, iCRG, iCRR;
     uint32_t ulPixel1, ulPixel2;
-
-    iCBB = 7258  * (iCb-0x80);
-    iCBG = -1409 * (iCb-0x80);
-    iCRG = -2925 * (iCr-0x80);
-    iCRR = 5742  * (iCr-0x80);
-    tmp = (iCBB + iY1) >> 15;
-    tmp = __USAT16(tmp, 5); // saturate blue to unsigned 5-bits
-    ulPixel1 = tmp;
-    tmp = ((iCBG + iCRG + iY1) >> 14);
-    tmp = __USAT16(tmp, 6); // saturate green to unsigned 6-bits
-    ulPixel1 |= (tmp << 5); // add green
-    tmp = ((iCRR + iY1) >> 15);
-    tmp = __USAT16(tmp, 5); // saturate red to unsigned 5-bits
-    ulPixel1 |= (tmp << 11);
-
-    tmp = (iCBB + iY2) >> 15;
-    tmp = __USAT16(tmp, 5); // saturate blue to unsigned 5-bits
-    ulPixel2 = tmp;
-    tmp = ((iCBG + iCRG + iY2) >> 14);
-    tmp = __USAT16(tmp, 6); // saturate green to unsigned 6-bits
-    ulPixel2 |= (tmp << 5); // add green
-    tmp = ((iCRR + iY2) >> 15);
-    tmp = __USAT16(tmp, 5); // saturate red to unsigned 5-bits
-    ulPixel2 |= (tmp << 11);
-    *(uint32_t *)&pDest[0] = (ulPixel1 | (ulPixel2<<16));
+    uint32_t ulCbCr = (iCb | (iCr << 16));
+    uint32_t ulTmp2, ulTmp = -1409 | (-2925 << 16); // for green calc
+    ulCbCr = __SSUB16(ulCbCr, 0x00800080); // dual 16-bit subtraction
+    ulPixel1 = __SMLAD(ulCbCr, ulTmp, iY1) >> 14; // G for pixel 1
+    ulPixel2 = __SMLAD(ulCbCr, ulTmp, iY2) >> 14; // G for pixel 2
+    ulPixel1 |= (ulPixel2 << 16);
+    ulPixel1 = __USAT16(ulPixel1, 6) << 5; // range limit both to 6 bits
+    ulTmp = __SMLAD(7258, ulCbCr, iY1) >> 15; // Blue 1
+    ulTmp2 = __SMLAD(7258, ulCbCr, iY2) >> 15; // Blue 2
+    ulTmp = __USAT16(ulTmp | (ulTmp2 << 16), 5); // range limit both to 5 bits
+    ulPixel1 |= ulTmp; // now we have G + B
+    ulTmp = __SMLAD(5742, ulCbCr >> 16, iY1) >> 15; // Red 1
+    ulTmp2 = __SMLAD(5742, ulCbCr >> 16, iY2) >> 15; // Red 2
+    ulTmp = __USAT16(ulTmp | (ulTmp2 << 16), 5); // range limit both to 5 bits
+    ulPixel1 |= (ulTmp << 11); // now we have R + G + B
+    *(uint32_t *)&pDest[0] = ulPixel1;
 } /* JPEGPixel2LE() */
 
 static void JPEGPutMCU11(JPEGIMAGE *pJPEG, int x, int y)

@@ -699,29 +699,6 @@ static int JPEGMakeHuffTables(JPEGIMAGE *pJPEG, int bThumbnail)
                         // get rid of extra bits in code and add increment (1) for AC index
                         code = ((iBitNum+(code & 0xf)) << 8) | ((code >> 4)+1);
                     }
-#ifdef BOGUS // precalculating the AC coeff makes it run slightly slower
-                    else if ((code & 0xf) != 0 && (code + iBitNum) <= 10) // we can fit the magnitude value + huffman code in a single read
-                    {
-                        int k, iLoop;
-                        unsigned short usCoeff;
-                        unsigned short *d = &pTable[4096]; // use unused table slots 2+3 for extra coeff data
-                        unsigned char ucMag = (unsigned char)(code & 0xf);
-                        code |= ((iBitNum + (code & 0xf)) << 8); // add magnitude bits to length
-                        repeat = 1<<ucMag;
-                        iLoop = 1<<(count-ucMag);
-                        for (j=0; j<repeat; j++)
-                        { // calcuate the magnitude coeff already
-                            if (j & 1<<(ucMag-1)) // positive number
-                                usCoeff = (unsigned short)j;
-                            else // negative number
-                                usCoeff = (unsigned short)(j - ((1<<ucMag)-1));
-                            for (k=0; k<iLoop; k++)
-                            {
-                                *d++ = usCoeff;
-                            } // for k
-                        } // for j
-                    }
-#endif
                     else
                     {
                         code |= (iBitNum << 8);
@@ -2714,7 +2691,6 @@ static int DecodeJPEG(JPEGIMAGE *pJPEG)
     int bContinue = 1; // early exit if the DRAW callback wants to stop
     uint32_t l, *pl;
     unsigned char cDCTable0, cACTable0, cDCTable1, cACTable1, cDCTable2, cACTable2;
-//    JPEGDRAW jd;
     int iMaxFill = 16, iScaleShift = 0;
 
     // Requested the Exif thumbnail
@@ -2820,31 +2796,8 @@ static int DecodeJPEG(JPEGIMAGE *pJPEG)
         iMCUCount = pJPEG->iMaxMCUs;
     if (pJPEG->ucPixelType > EIGHT_BIT_GRAYSCALE) // dithered, override the max MCU count
         iMCUCount = cx; // do the whole row
-//    jd.iBpp = 16;
-//    switch (pJPEG->ucPixelType)
-//    {
-//        case EIGHT_BIT_GRAYSCALE:
-//            jd.iBpp = 8;
-//            break;
-//        case FOUR_BIT_DITHERED:
-//            jd.iBpp = 4;
-//            break;
-//        case TWO_BIT_DITHERED:
-//            jd.iBpp = 2;
-//            break;
-//        case ONE_BIT_DITHERED:
-//            jd.iBpp = 1;
-//            break;
-//    }
-//    jd.pPixels = pJPEG->usPixels;
-//    jd.iHeight = mcuCY;
-//    jd.y = pJPEG->iYOffset;
-//    jd.pUser = pJPEG->pUser;
     for (y = 0; y < cy && bContinue; y++) //, jd.y += mcuCY)
     {
-//        jd.x = pJPEG->iXOffset;
-//        xoff = 0; // start of new LCD output group
-//        iPitch = iMCUCount * mcuCX; // pixels per line of LCD buffer
         for (x = 0; x < cx && bContinue && iErr == 0; x++)
         {
             pJPEG->ucACTable = cACTable0;
@@ -2979,18 +2932,6 @@ static int DecodeJPEG(JPEGIMAGE *pJPEG)
                         break;
                 } // switch on color option
             }
-//            xoff += mcuCX;
-//            if (xoff == iPitch || x == cx-1) // time to draw
-//            {
-//                xoff = 0;
-//                jd.iWidth = iPitch; // width of each LCD block group
-//                if (pJPEG->ucPixelType > EIGHT_BIT_GRAYSCALE) // dither to 4/2/1 bits
-//                    JPEGDither(pJPEG, cx * mcuCX, mcuCY);
-//                bContinue = (*pJPEG->pfnDraw)(&jd);
-//                jd.x += iPitch;
-//                if ((cx - 1 - x) < iMCUCount) // change pitch for the last set of MCUs on this row
-//                    iPitch = (cx - 1 - x) * mcuCX;
-//            }
             if (pJPEG->iResInterval)
             {
                 if (--pJPEG->iResCount == 0)
@@ -3012,56 +2953,6 @@ static int DecodeJPEG(JPEGIMAGE *pJPEG)
         pJPEG->iError = JPEG_DECODE_ERROR;
     return (iErr == 0);
 } /* DecodeJPEG() */
-
-//
-// Draw callback will be removed in the future
-//
-int JPEGDraw(JPEGDRAW *pDraw)
-{
-    image_t *pImg = (image_t *)pDraw->pUser;
-    uint8_t *s, *d;
-    int iBPP = pDraw->iBpp / 8; // bytes per pixel
-    int iDstPitch = pImg->w * iBPP;
-    int cy, y, iSrcPitch = pDraw->iWidth * iBPP;
-    cy = pDraw->iHeight;
-    if ((cy + pDraw->y) > pImg->h)
-        cy = pImg->h - pDraw->y;
-    d = &pImg->data[(pDraw->y * iDstPitch) + (pDraw->x * iBPP)];
-    s = (uint8_t *)pDraw->pPixels;
-    for (y=0; y<cy; y++) {
-        memcpy(d, s, iSrcPitch); // DEBUG - use a better method
-        s += iSrcPitch;
-        d += iDstPitch;
-    }
-    return 1; // continue decoding
-} /* JPEGDraw() */
-
-//
-// Draw callback will be removed in the future
-// (for binary output)
-int JPEGDraw2(JPEGDRAW *pDraw)
-{
-    image_t *pImg = (image_t *)pDraw->pUser;
-    uint8_t *s, *d;
-    int iDstPitch = ((pImg->w + 31) >> 3) & 0xfffc;
-    int cx, cy, x, y, iSrcPitch = pDraw->iWidth;
-    cx = pDraw->iWidth;
-    cy = pDraw->iHeight;
-    if ((cy + pDraw->y) > pImg->h)
-        cy = pImg->h - pDraw->y;
-    d = &pImg->data[(pDraw->y * iDstPitch) + (pDraw->x >> 3)];
-    s = (uint8_t *)pDraw->pPixels;
-    for (y=0; y<cy; y++) {
-        for (x=0; x<cx; x++) {
-            if (s[x] >= 128)
-                d[x >> 3] |= (1 << (x & 7));
-        } // for x
-        s += iSrcPitch;
-        d += iDstPitch;
-    } // for y
-    return 1; // continue decoding
-} /* JPEGDraw() */
-
 // Dst is an already allocated BINARY image. Fill it with JPEG data from source. On error fill
 // remaining pixels with 0.
 void imlib_jpeg_decompress_image_to_binary(image_t *dst, image_t *src)

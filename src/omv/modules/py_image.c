@@ -280,8 +280,8 @@ mp_obj_t py_image_unary_op(mp_unary_op_t op, mp_obj_t self_in) {
     switch (op) {
         case MP_UNARY_OP_LEN: {
             image_t *img = &self->_cobj;
-            if (img->pixfmt == PIXFORMAT_JPEG) {
-                // For JPEG images we create a 1D array.
+            if (img->is_compressed) {
+                // For JPEG/PNG images we create a 1D array.
                 return mp_obj_new_int(img->size);
             } else {
                 // For other formats, 2D array is created.
@@ -338,7 +338,7 @@ STATIC mp_obj_t py_image_it_iternext(mp_obj_t self_in)
                 return row;
             }
         }
-        default: {// JPEG
+        default: { // JPEG/PNG
             if (self->cur >= img->size) {
                 return MP_OBJ_STOP_ITERATION;
             } else {
@@ -380,7 +380,8 @@ static void py_image_print(const mp_print_t *print, mp_obj_t self, mp_print_kind
                 (image->pixfmt == PIXFORMAT_BAYER_RGGB) ? "bayer_rggb" :
                 (image->pixfmt == PIXFORMAT_YUV422)     ? "yuv422" :
                 (image->pixfmt == PIXFORMAT_YVU422)     ? "yvu422" :
-                (image->pixfmt == PIXFORMAT_JPEG)       ? "jpeg" : "unknown",
+                (image->pixfmt == PIXFORMAT_JPEG)       ? "jpeg" :
+                (image->pixfmt == PIXFORMAT_PNG)        ? "png" : "unknown",
                 image_size(image));
     }
 }
@@ -457,7 +458,8 @@ static mp_obj_t py_image_subscr(mp_obj_t self_in, mp_obj_t index, mp_obj_t value
                                                               mp_obj_new_int(COLOR_RGB565_TO_B8(p))});
                 }
             }
-            case PIXFORMAT_JPEG: {
+            case PIXFORMAT_JPEG:
+            case PIXFORMAT_PNG: {
                 if (MP_OBJ_IS_TYPE(index, &mp_type_slice)) {
                     mp_bound_slice_t slice;
                     if (!mp_seq_get_fast_slice_indexes(image->size, index, &slice)) {
@@ -587,7 +589,8 @@ static mp_obj_t py_image_subscr(mp_obj_t self_in, mp_obj_t index, mp_obj_t value
                 IMAGE_PUT_RGB565_PIXEL(image, i % image->w, i / image->w, p);
                 return mp_const_none;
             }
-            case PIXFORMAT_JPEG: {
+            case PIXFORMAT_JPEG:
+            case PIXFORMAT_PNG: {
                 if (MP_OBJ_IS_TYPE(index, &mp_type_slice)) {
                     mp_bound_slice_t slice;
                     if (!mp_seq_get_fast_slice_indexes(image->size, index, &slice)) {
@@ -666,8 +669,12 @@ static mp_obj_t py_image_format(mp_obj_t img_obj)
             return mp_obj_new_int(PIXFORMAT_BAYER);
         case PIXFORMAT_YUV_ANY:
             return mp_obj_new_int(PIXFORMAT_YUV422);
-        default:
+        case PIXFORMAT_JPEG:
             return mp_obj_new_int(PIXFORMAT_JPEG);
+        case PIXFORMAT_PNG:
+            return mp_obj_new_int(PIXFORMAT_JPEG);
+        default:
+            return mp_obj_new_int(PIXFORMAT_INVALID);
     }
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(py_image_format_obj, py_image_format);
@@ -6978,6 +6985,7 @@ static const mp_rom_map_elem_t globals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_BAYER),               MP_ROM_INT(PIXFORMAT_BAYER)},    /* 1BPP/RAW*/
     {MP_ROM_QSTR(MP_QSTR_YUV422),              MP_ROM_INT(PIXFORMAT_YUV422)},   /* 2BPP/YUV422*/
     {MP_ROM_QSTR(MP_QSTR_JPEG),                MP_ROM_INT(PIXFORMAT_JPEG)},     /* JPEG/COMPRESSED*/
+    {MP_ROM_QSTR(MP_QSTR_PNG),                 MP_ROM_INT(PIXFORMAT_PNG)},      /* PNG/COMPRESSED*/
     {MP_ROM_QSTR(MP_QSTR_AREA),                MP_ROM_INT(IMAGE_HINT_AREA)},
     {MP_ROM_QSTR(MP_QSTR_BILINEAR),            MP_ROM_INT(IMAGE_HINT_BILINEAR)},
     {MP_ROM_QSTR(MP_QSTR_BICUBIC),             MP_ROM_INT(IMAGE_HINT_BICUBIC)},

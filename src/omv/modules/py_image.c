@@ -1071,7 +1071,7 @@ static mp_obj_t py_image_to(pixformat_t pixfmt, const uint16_t *default_color_pa
                       IMAGE_HINT_EXTRACT_RGB_CHANNEL_FIRST |
                       IMAGE_HINT_APPLY_COLOR_PALETTE_FIRST);
         }
-    } else if (dst_img.pixfmt == PIXFORMAT_JPEG) {
+    } else if (dst_img.is_compressed) {
         if ((arg_x_scale != 1) ||
             (arg_y_scale != 1) ||
             (arg_roi.x != 0) ||
@@ -1082,7 +1082,7 @@ static mp_obj_t py_image_to(pixformat_t pixfmt, const uint16_t *default_color_pa
             (arg_alpha != 256) ||
             (color_palette != NULL) ||
             (alpha_palette != NULL)) {
-            mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Only jpeg copying is supported!"));
+            mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Only jpeg/png copying is supported!"));
         }
     }
 
@@ -1104,7 +1104,7 @@ static mp_obj_t py_image_to(pixformat_t pixfmt, const uint16_t *default_color_pa
         dst_img.data = xalloc(image_size(&dst_img));
     }
 
-    if (dst_img.pixfmt == PIXFORMAT_JPEG) {
+    if (dst_img.is_compressed) {
         if (dst_img.data != src_img->data) {
             memcpy(dst_img.data, src_img->data, dst_img.size);
         }

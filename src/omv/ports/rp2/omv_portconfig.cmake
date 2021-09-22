@@ -156,6 +156,7 @@ target_sources(${MICROPY_TARGET} PRIVATE
     ${TOP_DIR}/${OMV_DIR}/imlib/mjpeg.c
     ${TOP_DIR}/${OMV_DIR}/imlib/orb.c
     ${TOP_DIR}/${OMV_DIR}/imlib/phasecorrelation.c
+    ${TOP_DIR}/${OMV_DIR}/imlib/png.c
     ${TOP_DIR}/${OMV_DIR}/imlib/point.c
     ${TOP_DIR}/${OMV_DIR}/imlib/pool.c
     ${TOP_DIR}/${OMV_DIR}/imlib/ppm.c

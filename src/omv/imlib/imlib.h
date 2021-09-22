@@ -344,6 +344,7 @@ typedef enum {
     PIXFORMAT_ID_BAYER      = 4,
     PIXFORMAT_ID_YUV422     = 5,
     PIXFORMAT_ID_JPEG       = 6,
+    PIXFORMAT_ID_PNG        = 7,
     /* Note: Update PIXFORMAT_IS_VALID when adding new formats */
 } pixformat_id_t;
 
@@ -400,6 +401,7 @@ typedef enum {
     PIXFORMAT_YUV422     = (PIXFORMAT_FLAGS_CY | (PIXFORMAT_ID_YUV422 << 16) | (SUBFORMAT_ID_YUV422 << 8) | PIXFORMAT_BPP_YUV422 ),
     PIXFORMAT_YVU422     = (PIXFORMAT_FLAGS_CY | (PIXFORMAT_ID_YUV422 << 16) | (SUBFORMAT_ID_YVU422 << 8) | PIXFORMAT_BPP_YUV422 ),
     PIXFORMAT_JPEG       = (PIXFORMAT_FLAGS_CJ | (PIXFORMAT_ID_JPEG   << 16) | (0                   << 8) | 0                    ),
+    PIXFORMAT_PNG        = (PIXFORMAT_FLAGS_CJ | (PIXFORMAT_ID_PNG    << 16) | (0                   << 8) | 0                    ),
     PIXFORMAT_LAST       = 0xFFFFFFFFU,
 } pixformat_t;
 
@@ -428,7 +430,8 @@ typedef enum {
      || (x == PIXFORMAT_BAYER_RGGB)     \
      || (x == PIXFORMAT_YUV422)         \
      || (x == PIXFORMAT_YVU422)         \
-     || (x == PIXFORMAT_JPEG))          \
+     || (x == PIXFORMAT_JPEG)           \
+     || (x == PIXFORMAT_PNG))           \
 
 #if defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
 #define PIXFORMAT_STRUCT            \
@@ -864,11 +867,18 @@ typedef struct jpg_read_settings {
     int32_t jpg_size;
 } jpg_read_settings_t;
 
+typedef struct png_read_settings {
+    int32_t png_w;
+    int32_t png_h;
+    int32_t png_size;
+} png_read_settings_t;
+
 typedef enum save_image_format {
     FORMAT_DONT_CARE,
     FORMAT_BMP,
     FORMAT_PNM,
     FORMAT_JPG,
+    FORMAT_PNG,
     FORMAT_RAW,
 } save_image_format_t;
 
@@ -877,6 +887,7 @@ typedef struct img_read_settings {
         bmp_read_settings_t bmp_rs;
         ppm_read_settings_t ppm_rs;
         jpg_read_settings_t jpg_rs;
+        png_read_settings_t png_rs;
     };
     save_image_format_t format;
 } img_read_settings_t;
@@ -1113,6 +1124,12 @@ void jpeg_read_geometry(FIL *fp, image_t *img, const char *path, jpg_read_settin
 void jpeg_read_pixels(FIL *fp, image_t *img);
 void jpeg_read(image_t *img, const char *path);
 void jpeg_write(image_t *img, const char *path, int quality);
+void png_decompress(image_t *dst, image_t *src);
+bool png_compress(image_t *src, image_t *dst, bool realloc);
+void png_read_geometry(FIL *fp, image_t *img, const char *path, png_read_settings_t *rs);
+void png_read_pixels(FIL *fp, image_t *img);
+void png_read(image_t *img, const char *path);
+void png_write(image_t *img, const char *path);
 bool imlib_read_geometry(FIL *fp, image_t *img, const char *path, img_read_settings_t *rs);
 void imlib_image_operation(image_t *img, const char *path, image_t *other, int scalar, line_op_t op, void *data);
 void imlib_load_image(image_t *img, const char *path);

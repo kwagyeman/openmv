@@ -118,10 +118,103 @@ bool png_compress(image_t *src, image_t *dst, bool realloc)
     return false;
 }
 
+void png_callback(PNGDRAW *pDraw)
+{
+image_t *dst = (image_t *)pDraw->pUser; // pointer to destination image
+
+   switch (dst->pixfmt) { // convert the pixel format already
+      case PIXFORMAT_GRAYSCALE:
+          if (pDraw->iPixelType == PNG_PIXEL_TRUECOLOR_ALPHA || pDraw->iPixelType == PNG_PIXEL_TRUECOLOR)
+          {
+          uint8_t *s = pDraw->pPixels;
+          int pixel;
+          uint8_t *d = (uint8_t *)dst->data; 
+          const int iDelta = (pDraw->iPixelType == PNG_PIXEL_TRUECOLOR_ALPHA) ? 4:3;          
+              d += pDraw->y * pDraw->iWidth; // starting offset
+              for (int i=0; i<pDraw->iWidth; i++) {
+                  pixel = s[0] + (s[1]<<1) + s[2]; // easy grayscale
+                  *d++ = (uint8_t)(pixel >> 2);
+                  s += iDelta;
+              }
+          } else if (pDraw->iPixelType == PNG_PIXEL_GRAYSCALE)
+          {
+          uint8_t *d = (uint8_t *)dst->data;
+              d += pDraw->y * pDraw->iWidth; // starting offset
+              memcpy(d, pDraw->pPixels, pDraw->iWidth);
+          }
+          break;
+      case PIXFORMAT_BINARY:
+          if (pDraw->iPixelType == PNG_PIXEL_TRUECOLOR_ALPHA || pDraw->iPixelType == PNG_PIXEL_TRUECOLOR)
+          {
+          uint8_t *s = pDraw->pPixels;
+          int pixel;
+          uint8_t uc, ucMask, *d = (uint8_t *)dst->data; 
+          const int iPitch = IMAGE_BINARY_LINE_LEN_BYTES(dst);
+          const int iDelta = (pDraw->iPixelType == PNG_PIXEL_TRUECOLOR_ALPHA) ? 4:3;          
+              d += pDraw->y * iPitch; // starting offset
+              ucMask = 0x80;
+              uc = 0;
+              for (int i=0; i<pDraw->iWidth; i++) {
+                  pixel = s[0] + (s[1]<<1) + s[2]; // easy grayscale
+                  if (pixel >= 512) // white
+                      uc |= ucMask;
+                  ucMask >>= 1;
+                  if (ucMask == 0) { // new byte
+                      *d++ = uc;
+                      uc = 0;
+                      ucMask = 0x80;
+                  }
+                  s += iDelta;
+              }
+              *d++ = uc; // store last partial byte
+          } else if (pDraw->iPixelType == PNG_PIXEL_GRAYSCALE)
+          {
+          uint8_t *s = pDraw->pPixels;
+          uint8_t uc, ucMask, *d = (uint8_t *)dst->data;
+          const int iPitch = IMAGE_BINARY_LINE_LEN_BYTES(dst);
+
+              d += pDraw->y * iPitch; // starting offset
+              uc = 0;
+              ucMask = 0x80;
+              for (int i=0; i<pDraw->iWidth; i++) {
+                  if (s[i] >= 128) // white
+                      uc |= ucMask;
+                  ucMask >>= 1;
+                  if (ucMask == 0) { // new byte
+                      *d++ = uc;
+                      uc = 0;
+                      ucMask = 0x80;
+                  }
+              }
+              *d++ = uc; // store last partial byte
+          }
+          break;
+      case PIXFORMAT_RGB565:
+          if (pDraw->iPixelType == PNG_PIXEL_TRUECOLOR_ALPHA || pDraw->iPixelType == PNG_PIXEL_TRUECOLOR)
+          {
+          uint8_t *s = pDraw->pPixels;
+          uint16_t us, *d = (uint16_t *)dst->data;
+          const int iDelta = (pDraw->iPixelType == PNG_PIXEL_TRUECOLOR_ALPHA) ? 4:3;
+              d += pDraw->y * pDraw->iWidth; // starting offset
+              for (int i=0; i<pDraw->iWidth; i++) {
+                  us = (s[0] & 0xf8) << 8; // red
+                  us |= ((s[1] & 0xfc) << 3); // green
+                  us |= (s[2] >> 3); // blue
+                  *d++ = us;
+                  s += iDelta;
+              }
+          }
+          break;
+// Future
+//      case PIXFORMAT_ARGB8888:
+//          break;
+   } /* switch on pixel format */
+} /* png_callback() */
+
 void png_decompress(image_t *dst, image_t *src)
 {
 PNG_DEC_IMAGE *pPNG;
-int iSize, rc;
+int rc; //iSize;
 
     printf("In png_decompress\n");
     pPNG = (PNG_DEC_IMAGE *)fb_alloc(sizeof(PNG_DEC_IMAGE), FB_ALLOC_PREFER_SIZE | FB_ALLOC_CACHE_ALIGN);
@@ -136,13 +229,14 @@ int iSize, rc;
        return;
     }
     printf("PNGDEC_openRAM succeeded!\n");
-    iSize = PNGDEC_getBufferSize(pPNG);
-    dst->data = (uint8_t *)fb_alloc(iSize, FB_ALLOC_PREFER_SIZE | FB_ALLOC_CACHE_ALIGN);
+    //iSize = PNGDEC_getBufferSize(pPNG);
+    //dst->data = (uint8_t *)fb_alloc(iSize, FB_ALLOC_PREFER_SIZE | FB_ALLOC_CACHE_ALIGN);
     if (dst->data == NULL) {
        fb_free(); // free PNG structure
        return; // DEBUG - throw error here
     }
-    rc = DecodePNG(pPNG, NULL, 0);
+    pPNG->pfnDraw = png_callback; // give the PNG decoder a pointer to the callback function
+    rc = DecodePNG(pPNG, (void *)dst, 0);
     if (rc != PNG_SUCCESS) {
        printf("DecodePNG failed!\n");
        fb_free();

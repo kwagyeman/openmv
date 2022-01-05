@@ -666,7 +666,7 @@ PNG_STATIC int DecodePNG(PNG_DEC_IMAGE *pPage, void *pUser, int iOptions)
     // Either the image buffer must be allocated or a draw callback must be set before entering
     if (pPage->pImage == NULL && pPage->pfnDraw == NULL) {
         pPage->iError = PNG_NO_BUFFER;
-        return 0;
+        return PNG_NO_BUFFER;
     }
     // Use internal buffer to maintain the current and previous lines
     pCurr = pPage->ucPixels;

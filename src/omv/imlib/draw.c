@@ -2779,6 +2779,9 @@ void imlib_draw_image(image_t *dst_img, image_t *src_img, int dst_x_start, int d
                     break;
                 }
                 default : {
+                    if (is_png) {
+                       png_decompress(&new_src_img, src_img);
+                    }
                     break;
                 }
             }

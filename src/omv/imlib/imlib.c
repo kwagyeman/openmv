@@ -506,9 +506,9 @@ static save_image_format_t imblib_parse_extension(image_t *img, const char *path
                &&  ((p[-4] == '.') || (p[-4] == '.'))) {
                     // Will convert to JPG if not.
                     return FORMAT_JPG;
-        } else if (((p[-1] == 'p') || (p[-1] == 'P'))
+        } else if (((p[-1] == 'g') || (p[-1] == 'G'))
                &&  ((p[-2] == 'n') || (p[-2] == 'N'))
-               &&  ((p[-3] == 'g') || (p[-3] == 'G'))
+               &&  ((p[-3] == 'p') || (p[-3] == 'P'))
                &&  ((p[-4] == '.') || (p[-4] == '.'))) {
                     // Will convert to PNG if not.
                     return FORMAT_PNG;

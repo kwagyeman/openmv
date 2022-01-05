@@ -160,6 +160,7 @@ FIRM_OBJ += $(addprefix $(BUILD)/$(OMV_DIR)/sensors/,   \
    )
 
 FIRM_OBJ += $(addprefix $(BUILD)/$(OMV_DIR)/imlib/, \
+	adler32.o                   \
 	agast.o                     \
 	apriltag.o                  \
 	bayer.o                     \
@@ -168,6 +169,8 @@ FIRM_OBJ += $(addprefix $(BUILD)/$(OMV_DIR)/imlib/, \
 	bmp.o                       \
 	clahe.o                     \
 	collections.o               \
+	crc32.o                     \
+	deflate.o                   \
 	dmtx.o                      \
 	draw.o                      \
 	edge.o                      \
@@ -184,6 +187,9 @@ FIRM_OBJ += $(addprefix $(BUILD)/$(OMV_DIR)/imlib/, \
 	hog.o                       \
 	hough.o                     \
 	imlib.o                     \
+	inffast.o                   \
+	inflate.o                   \
+	inftrees.o                  \
 	integral.o                  \
 	integral_mw.o               \
 	jpegd.o                     \
@@ -209,9 +215,11 @@ FIRM_OBJ += $(addprefix $(BUILD)/$(OMV_DIR)/imlib/, \
 	sincos_tab.o                \
 	stats.o                     \
 	template.o                  \
+	trees.o                     \
 	xyz_tab.o                   \
 	yuv.o                       \
 	zbar.o                      \
+	zutil.o                     \
    )
 
 FIRM_OBJ += $(wildcard $(BUILD)/$(OMV_DIR)/ports/$(PORT)/*.o)

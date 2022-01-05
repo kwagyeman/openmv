@@ -43,6 +43,7 @@ SRCS += $(addprefix sensors/,   \
    )
 
 SRCS += $(addprefix imlib/,     \
+	adler32.c                   \
 	agast.c                     \
 	apriltag.c                  \
 	bayer.c                     \
@@ -51,6 +52,8 @@ SRCS += $(addprefix imlib/,     \
 	bmp.c                       \
 	clahe.c                     \
 	collections.c               \
+	crc32.c                     \
+	deflate.c                   \
 	dmtx.c                      \
 	draw.c                      \
 	edge.c                      \
@@ -67,6 +70,9 @@ SRCS += $(addprefix imlib/,     \
 	hog.c                       \
 	hough.c                     \
 	imlib.c                     \
+	inffast.c                   \
+	inflate.c                   \
+	inftrees.c                  \
 	integral.c                  \
 	integral_mw.c               \
 	jpegd.c                     \
@@ -92,9 +98,11 @@ SRCS += $(addprefix imlib/,     \
 	sincos_tab.c                \
 	stats.c                     \
 	template.c                  \
+	trees.c                     \
 	xyz_tab.c                   \
 	yuv.c                       \
 	zbar.c                      \
+	zutil.c                     \
    )
 
 SRCS += $(wildcard ports/$(PORT)/*.c)

@@ -152,17 +152,17 @@ image_t *dst = (image_t *)pDraw->pUser; // pointer to destination image
           const int iPitch = IMAGE_BINARY_LINE_LEN_BYTES(dst);
           const int iDelta = (pDraw->iPixelType == PNG_PIXEL_TRUECOLOR_ALPHA) ? 4:3;          
               d += pDraw->y * iPitch; // starting offset
-              ucMask = 0x80;
+              ucMask = 0x1;
               uc = 0;
               for (int i=0; i<pDraw->iWidth; i++) {
                   pixel = s[0] + (s[1]<<1) + s[2]; // easy grayscale
                   if (pixel >= 512) // white
                       uc |= ucMask;
-                  ucMask >>= 1;
+                  ucMask <<= 1;
                   if (ucMask == 0) { // new byte
                       *d++ = uc;
                       uc = 0;
-                      ucMask = 0x80;
+                      ucMask = 0x1;
                   }
                   s += iDelta;
               }
@@ -175,15 +175,15 @@ image_t *dst = (image_t *)pDraw->pUser; // pointer to destination image
 
               d += pDraw->y * iPitch; // starting offset
               uc = 0;
-              ucMask = 0x80;
+              ucMask = 0x1;
               for (int i=0; i<pDraw->iWidth; i++) {
                   if (s[i] >= 128) // white
                       uc |= ucMask;
-                  ucMask >>= 1;
+                  ucMask <<= 1;
                   if (ucMask == 0) { // new byte
                       *d++ = uc;
                       uc = 0;
-                      ucMask = 0x80;
+                      ucMask = 0x1;
                   }
               }
               *d++ = uc; // store last partial byte

@@ -117,11 +117,17 @@ bool png_compress(image_t *src, image_t *dst, bool realloc)
 
     return false;
 }
-
+//
+// PNG decoder callback
+// Called once per line of output
+// A convenient place to convert the pixel format
+// without having to allocate an intermediate buffer
+//
 void png_callback(PNGDRAW *pDraw)
 {
 image_t *dst = (image_t *)pDraw->pUser; // pointer to destination image
 
+// Switch on requested output pixel format
    switch (dst->pixfmt) { // convert the pixel format already
       case PIXFORMAT_GRAYSCALE:
           if (pDraw->iPixelType == PNG_PIXEL_TRUECOLOR_ALPHA || pDraw->iPixelType == PNG_PIXEL_TRUECOLOR)
@@ -141,6 +147,37 @@ image_t *dst = (image_t *)pDraw->pUser; // pointer to destination image
           uint8_t *d = (uint8_t *)dst->data;
               d += pDraw->y * pDraw->iWidth; // starting offset
               memcpy(d, pDraw->pPixels, pDraw->iWidth);
+          } else if (pDraw->iPixelType == PNG_PIXEL_INDEXED)
+          { // indexed = palette colors
+              uint8_t *pPal = pDraw->pPalette;
+              uint32_t pixel;
+              uint8_t uc, *s, *d, *p;
+              d = (uint8_t *)dst->data + (pDraw->y * pDraw->iWidth);
+              s = pDraw->pPixels;
+              switch (pDraw->iBpp) {
+                  case 1:
+                      break;
+                  case 2:
+                      break;
+                  case 4:
+                      for (int i=0; i<pDraw->iWidth; i+=2) {
+                          uc = *s++;
+                          p = &pPal[(uc>>4) * 3];
+                          pixel = p[0] + (p[1]<<1) + p[2]; // quick gray calc
+                          *d++ = (uint8_t)(pixel >> 2);
+                          p = &pPal[(uc&0xf) * 3];
+                          pixel = p[0] + (p[1]<<1) + p[2];
+                          *d++ = (uint8_t)(pixel >> 2);
+                      }
+                      break;
+                  case 8:
+                      for (int i=0; i<pDraw->iWidth; i++) {
+                          p = &pPal[s[i] * 3];
+                          pixel = p[0] + (p[1]<<1) + p[2]; // quick gray calc
+                          *d++ = (uint8_t)(pixel >> 2);
+                      }
+                      break;
+              } // switch on source bits per pixel
           }
           break;
       case PIXFORMAT_BINARY:
@@ -190,19 +227,10 @@ image_t *dst = (image_t *)pDraw->pUser; // pointer to destination image
           }
           break;
       case PIXFORMAT_RGB565:
-          if (pDraw->iPixelType == PNG_PIXEL_TRUECOLOR_ALPHA || pDraw->iPixelType == PNG_PIXEL_TRUECOLOR)
           {
-          uint8_t *s = pDraw->pPixels;
-          uint16_t us, *d = (uint16_t *)dst->data;
-          const int iDelta = (pDraw->iPixelType == PNG_PIXEL_TRUECOLOR_ALPHA) ? 4:3;
-              d += pDraw->y * pDraw->iWidth; // starting offset
-              for (int i=0; i<pDraw->iWidth; i++) {
-                  us = (s[0] & 0xf8) << 8; // red
-                  us |= ((s[1] & 0xfc) << 3); // green
-                  us |= (s[2] >> 3); // blue
-                  *d++ = us;
-                  s += iDelta;
-              }
+          uint16_t *d = (uint16_t *)dst->data;
+              d += (pDraw->y * pDraw->iWidth);
+              PNGRGB565(pDraw, d, PNG_RGB565_LITTLE_ENDIAN, 0, 0);
           }
           break;
 // Future
@@ -236,11 +264,10 @@ int rc; //iSize;
        return; // DEBUG - throw error here
     }
     pPNG->pfnDraw = png_callback; // give the PNG decoder a pointer to the callback function
-    rc = DecodePNG(pPNG, (void *)dst, 0);
+    rc = DecodePNG(pPNG, (void *)dst, (dst->pixfmt == PIXFORMAT_RGB565)? PNG_FAST_PALETTE : 0);
+    fb_free(); // free the PNG structure
     if (rc != PNG_SUCCESS) {
        printf("DecodePNG failed!\n");
-       fb_free();
-       fb_free();
        return; // DEBUG - throw error here
     } else {
        printf("DecodePNG succeeded!\n");

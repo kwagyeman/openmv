@@ -281,30 +281,27 @@ int rc; //iSize;
 // This function inits the geometry values of an image.
 void png_read_geometry(FIL *fp, image_t *img, const char *path, png_read_settings_t *rs)
 {
-    for (;;) {
-        uint32_t header;
-        file_seek(fp, 12); // start of IHDR
-        read_long(fp, &header);
-        if (header == 0x52444849) // IHDR
-        {   
-            uint32_t width, height;
-            read_long(fp, &width);
-            read_long(fp, &height);
-            width = __builtin_bswap32(width);
-            height = __builtin_bswap32(height);
-printf("PNG geometry %d x %d\n", (int)width, (int)height);
-            rs->png_w   = width;
-            rs->png_h   = height;
-            rs->png_size = IMLIB_IMAGE_MAX_SIZE(f_size(fp));
+    uint32_t header;
+    file_seek(fp, 12); // start of IHDR
+    read_long(fp, &header);
+    if (header == 0x52444849) // IHDR
+    {
+        uint32_t width, height;
+        read_long(fp, &width);
+        read_long(fp, &height);
+        width = __builtin_bswap32(width);
+        height = __builtin_bswap32(height);
+        //printf("PNG geometry %d x %d\n", (int)width, (int)height);
+        rs->png_w   = width;
+        rs->png_h   = height;
+        rs->png_size = IMLIB_IMAGE_MAX_SIZE(f_size(fp));
 
-            img->w      = rs->png_w;
-            img->h      = rs->png_h;
-            img->size   = rs->png_size;
-            img->pixfmt = PIXFORMAT_PNG;
-            return;
-        } else {
-            ff_file_corrupted(fp);
-        }
+        img->w      = rs->png_w;
+        img->h      = rs->png_h;
+        img->size   = rs->png_size;
+        img->pixfmt = PIXFORMAT_PNG;
+    } else {
+        ff_file_corrupted(fp);
     }
 } /* png_read_geometry() */
 

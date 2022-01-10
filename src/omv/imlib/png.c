@@ -151,13 +151,36 @@ image_t *dst = (image_t *)pDraw->pUser; // pointer to destination image
           { // indexed = palette colors
               uint8_t *pPal = pDraw->pPalette;
               uint32_t pixel;
-              uint8_t uc, *s, *d, *p;
+              uint8_t c0, c1, uc, *s, *d, *p;
               d = (uint8_t *)dst->data + (pDraw->y * pDraw->iWidth);
               s = pDraw->pPixels;
               switch (pDraw->iBpp) {
                   case 1:
+                      pixel = pPal[0] + (pPal[1]<<1) + pPal[2]; // color 0
+                      c0 = (uint8_t)(pixel >> 2);
+                      pixel = pPal[3] + (pPal[4]<<1) + pPal[5]; // color 1
+                      c1 = (uint8_t)(pixel >> 2);
+                      for (int i=0; i<pDraw->iWidth; i+=8) {
+                          uc = *s++;
+                          for (int j=0; j<8; j++) { // work on individual bits
+                              if (uc & 0x80)
+                                  *d++ = c1;
+                              else
+                                  *d++ = c0;
+                              uc <<= 1;
+                          }
+                      }
                       break;
                   case 2:
+                      for (int i=0; i<pDraw->iWidth; i+=4) {
+                          uc = *s++;
+                          for (int j=0; j<4; j++) { // work on pairs of bits
+                              p = &pPal[(uc>>6) * 3];
+                              pixel = p[0] + (p[1]<<1) + p[2]; // quick gray calc
+                              *d++ = (uint8_t)(pixel >> 2);
+                              uc <<= 2;
+                          }
+                      }
                       break;
                   case 4:
                       for (int i=0; i<pDraw->iWidth; i+=2) {
@@ -178,6 +201,18 @@ image_t *dst = (image_t *)pDraw->pUser; // pointer to destination image
                       }
                       break;
               } // switch on source bits per pixel
+          } else if (pDraw->iPixelType == PNG_PIXEL_GRAY_ALPHA) {
+              uint8_t c, a, *s, *d = (uint8_t *)dst->data;
+              int j;
+              d += pDraw->y * pDraw->iWidth; // starting offset
+              s = pDraw->pPixels;
+              for (int i=0; i<pDraw->iWidth; i++) {
+                  c = *s++; // gray level
+                  a = *s++; // alpha
+                  j = (a * c) >> 8; // multiply by the alpha
+                  *d++ = (uint8_t)j;
+              }
+
           }
           break;
       case PIXFORMAT_BINARY:
@@ -224,7 +259,123 @@ image_t *dst = (image_t *)pDraw->pUser; // pointer to destination image
                   }
               }
               *d++ = uc; // store last partial byte
-          }
+           } else if (pDraw->iPixelType == PNG_PIXEL_GRAY_ALPHA)
+           {
+           uint8_t *s = pDraw->pPixels;
+           uint8_t uc, ucMask, *d = (uint8_t *)dst->data;
+           uint32_t pixel;
+           const int iPitch = IMAGE_BINARY_LINE_LEN_BYTES(dst);
+               d += pDraw->y * iPitch; // starting offset
+               uc = 0;
+               ucMask = 0x1;
+               for (int i=0; i<pDraw->iWidth; i++) {
+                   pixel = *s++; // gray level
+                   pixel *= *s++; // times alpha
+                   if (pixel >= 32768) // white
+                       uc |= ucMask;
+                   ucMask <<= 1;
+                   if (ucMask == 0) { // new byte
+                       *d++ = uc;
+                       uc = 0;
+                       ucMask = 0x1;
+                   }
+               }
+               *d++ = uc; // store last partial byte
+           } else if (pDraw->iPixelType == PNG_PIXEL_INDEXED)
+           { // indexed = palette colors
+               uint8_t *pPal = pDraw->pPalette;
+               uint32_t pixel;
+               uint8_t c0, c1, uc, ucOut, ucMask, *s, *d, *p;
+               d = (uint8_t *)dst->data + (pDraw->y * pDraw->iWidth);
+               s = pDraw->pPixels;
+               switch (pDraw->iBpp) {
+                   case 1:
+                       pixel = pPal[0] + (pPal[1]<<1) + pPal[2]; // color 0
+                       c0 = (uint8_t)(pixel >> 9);
+                       pixel = pPal[3] + (pPal[4]<<1) + pPal[5]; // color 1
+                       c1 = (uint8_t)(pixel >> 9);
+                       ucOut = 0;
+                       for (int i=0; i<pDraw->iWidth; i+=8) {
+                           uc = *s++;
+                           for (int j=0; j<8; j++) { // work on individual bits
+                               if (uc & 0x80)
+                                   ucOut |= (c0 << j);
+                               else
+                                   ucOut |= (c1 << j);
+                               uc <<= 1;
+                           }
+                           *d++ = ucOut;
+                           ucOut = 0;
+                       }
+                       if (ucOut)
+                           *d++ = ucOut; // store final partial byte
+                       break;
+                   case 2:
+                       ucOut = 0;
+                       ucMask = 1;
+                       for (int i=0; i<pDraw->iWidth; i+=4) {
+                           uc = *s++;
+                           for (int j=0; j<4; j++) { // work on pairs of bits
+                               p = &pPal[(uc>>6) * 3];
+                               pixel = (p[0] + (p[1]<<1) + p[2]) >> 9; // quick gray calc
+                               if (pixel)
+                                   ucOut |= ucMask;
+                               uc <<= 2;
+                               ucMask <<= 1;
+                               if (ucMask == 0) {
+                                   *d++ = ucOut;
+                                   ucMask = 1;
+                                   ucOut = 0;
+                               }
+                           }
+                       }
+                       if (ucOut)
+                           *d++ = ucOut; // store partial byte
+                       break;
+                   case 4:
+                       ucOut = 0;
+                       ucMask = 1;
+                       for (int i=0; i<pDraw->iWidth; i+=2) {
+                           uc = *s++;
+                           p = &pPal[(uc>>4) * 3];
+                           pixel = (p[0] + (p[1]<<1) + p[2]) >> 9; // quick gray calc
+                           if (pixel)
+                               ucOut |= ucMask;
+                           ucMask <<= 1;
+                           p = &pPal[(uc&0xf) * 3];
+                           pixel = (p[0] + (p[1]<<1) + p[2]) >> 9;
+                           if (pixel)
+                               ucOut |= ucMask;
+                           ucMask <<= 1;
+                           if (ucMask == 0) {
+                               *d++ = ucOut;
+                               ucOut = 0;
+                               ucMask = 1;
+                           }
+                       }
+                       if (ucOut)
+                           *d++ = ucOut; // store last partial byte
+                       break;
+                   case 8:
+                       ucOut = 0;
+                       ucMask = 1;
+                       for (int i=0; i<pDraw->iWidth; i++) {
+                           p = &pPal[s[i] * 3];
+                           pixel = (p[0] + (p[1]<<1) + p[2]) >> 9; // quick gray calc
+                           if (pixel)
+                               ucOut |= ucMask;
+                           ucMask <<= 1;
+                           if (ucMask == 0) {
+                               *d++ = ucOut;
+                               ucOut = 0;
+                               ucMask = 1;
+                           }
+                       }
+                       if (ucOut)
+                           *d++ = ucOut; // store last partial byte
+                       break;
+               } // switch on source bits per pixel
+           }
           break;
       case PIXFORMAT_RGB565:
           {

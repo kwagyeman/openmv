@@ -1791,11 +1791,14 @@ static void JPEGPutMCU8BitGray(JPEGIMAGE *pJPEG, int x, int y)
         } else if (pJPEG->iOptions & JPEG_SCALE_EIGHTH) {
             xcount = ycount = 1;
         }
+        if ((x + 8) > pJPEG->iWidth) xcount = pJPEG->iWidth & 7;
+        if ((y + 8) > pJPEG->iHeight) ycount = pJPEG->iHeight & 7; 
         for (i = 0; i < ycount; i++) {
             // do up to 8 rows
             for (j = 0; j < xcount; j++) {
                 *pDest++ = *pSrc++;
             }
+            pSrc += (8 - xcount);
             pDest -= xcount;
             pDest += iPitch; // next line
         }
@@ -2290,7 +2293,7 @@ static void JPEGPutMCU22(JPEGIMAGE *pJPEG, int x, int y)
 {
     uint32_t Cr,Cb;
     signed int Y1, Y2, Y3, Y4;
-    int iRow, iCol, iXCount1, iXCount2, iYCount;
+    int iRow, iRowLimit, iCol, iXCount1, iXCount2, iYCount;
     unsigned char *pY, *pCr, *pCb;
     const int iPitch = pJPEG->iWidth;
     int bUseOdd1, bUseOdd2; // special case where 24bpp odd sized image can clobber first column
@@ -2383,6 +2386,12 @@ static void JPEGPutMCU22(JPEGIMAGE *pJPEG, int x, int y)
     }
     /* Convert YCC pixels into RGB pixels and store in output image */
     iYCount  = 4;
+    iRowLimit = 16; // assume all rows possible to draw
+    if ((y + 15) >= pJPEG->iHeight) {
+        iRowLimit = pJPEG->iHeight & 15;
+        if (iRowLimit < 8)
+            iYCount = iRowLimit >> 1;
+    }
     bUseOdd1 = bUseOdd2 = 1; // assume odd column can be used
     if ((x + 15) >= pJPEG->iWidth) {
         iCol = (((pJPEG->iWidth & 15) + 1) >> 1);
@@ -2446,6 +2455,7 @@ static void JPEGPutMCU22(JPEGIMAGE *pJPEG, int x, int y)
                     JPEGPixelLE(pOutput + iPitch + 8 + (iCol << 1), Y3, Cb, Cr);
                 }
             }
+            if (iRowLimit > 8) {
             // for bottom left block
             Y1   = pY[iCol * 2 + DCTSIZE * 4];
             Y2   = pY[iCol * 2 + 1 + DCTSIZE * 4];
@@ -2486,6 +2496,7 @@ static void JPEGPutMCU22(JPEGIMAGE *pJPEG, int x, int y)
                     JPEGPixelLE(pOutput + iPitch * 9 + 8 + (iCol << 1), Y3, Cb, Cr);
                 }
             }
+            } // row limit > 8
         } // for each column
         pY      += 16; // skip to next line of source pixels
         pCb     += 8;

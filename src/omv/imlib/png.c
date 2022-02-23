@@ -136,7 +136,7 @@ uint8_t *pTemp;
                 for (int x=0; x<src->w; x++) {
                     us = *pPixels++;
                     *d++ = (uint8_t)(((us >> 8) & 0xf8) | (us >> 13)); // red
-                    *d++ = (uint8_t)(((us >> 3) & 0xfc) | ((us >> 9) && 0x3)); // green
+                    *d++ = (uint8_t)(((us >> 3) & 0xfc) | ((us >> 9) & 0x3)); // green
                     *d++ = (uint8_t)(((us & 0x1f) << 3) | ((us & 0x1c) >> 2)); // blue
                 }
                 break;

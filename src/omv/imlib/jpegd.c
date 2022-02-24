@@ -1942,12 +1942,15 @@ static void JPEGPutMCU8BitGray(JPEGIMAGE *pJPEG, int x, int y)
             }
             return;
         }
-        for (i = 0; i < 8; i++) {
-            for (j = 0; j < 8; j++) {
-                pDest[j]     = pSrc[j];                    // Y0
-                pDest[j + 8] = pSrc[j + 128];              // Y1
-                pDest[iPitch * 8 + j] = pSrc[j + 256];     // Y2
-                pDest[iPitch * 8 + j + 8] = pSrc[j + 384]; // Y3
+        xcount = ycount = 16;
+        if ((x + 16) > pJPEG->iWidth) xcount = pJPEG->iWidth & 15;
+        if ((y + 16) > pJPEG->iHeight) ycount = pJPEG->iHeight & 15;
+// The source MCUs are 64 bytes of data at offsets of 0, 128, 256, 384
+// The 4 8x8 MCUs are looping through using a single pass of x/y by
+// using the 0/8 bit of the coordinate to adjust the source data offset
+        for (i = 0; i < ycount; i++) {
+            for (j = 0; j < xcount; j++) {
+                pDest[j] = pSrc[j+((i&8)*24)+((j&8)*15)];
             }
             pSrc  += 8;
             pDest += iPitch;

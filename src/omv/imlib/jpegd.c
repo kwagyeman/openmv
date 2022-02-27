@@ -324,6 +324,39 @@ static const uint8_t ucRangeTable[] = {
     0x70,0x71,0x72,0x73,0x74,0x75,0x76,0x77,0x78,0x79,0x7a,0x7b,0x7c,0x7d,0x7e,0x7f
 };
 
+static const uint16_t usGrayTo565[] = {0x0000,0x0000,0x0000,0x0000,0x0020,0x0020,0x0020,0x0020, // 0
+    0x0841,0x0841,0x0841,0x0841,0x0861,0x0861,0x0861,0x0861,
+    0x1082,0x1082,0x1082,0x1082,0x10a2,0x10a2,0x10a2,0x10a2,
+    0x18c3,0x18c3,0x18c3,0x18c3,0x18e3,0x18e3,0x18e3,0x18e3,
+    0x2104,0x2104,0x2104,0x2104,0x2124,0x2124,0x2124,0x2124,
+    0x2945,0x2945,0x2945,0x2945,0x2965,0x2965,0x2965,0x2965,
+    0x3186,0x3186,0x3186,0x3186,0x31a6,0x31a6,0x31a6,0x31a6,
+    0x39c7,0x39c7,0x39c7,0x39c7,0x39e7,0x39e7,0x39e7,0x39e7,
+    0x4208,0x4208,0x4208,0x4208,0x4228,0x4228,0x4228,0x4228,
+    0x4a49,0x4a49,0x4a49,0x4a49,0x4a69,0x4a69,0x4a69,0x4a69,
+    0x528a,0x528a,0x528a,0x528a,0x52aa,0x52aa,0x52aa,0x52aa,
+    0x5acb,0x5acb,0x5acb,0x5acb,0x5aeb,0x5aeb,0x5aeb,0x5aeb,
+    0x630c,0x630c,0x630c,0x630c,0x632c,0x632c,0x632c,0x632c,
+    0x6b4d,0x6b4d,0x6b4d,0x6b4d,0x6b6d,0x6b6d,0x6b6d,0x6b6d,
+    0x738e,0x738e,0x738e,0x738e,0x73ae,0x73ae,0x73ae,0x73ae,
+    0x7bcf,0x7bcf,0x7bcf,0x7bcf,0x7bef,0x7bef,0x7bef,0x7bef,
+    0x8410,0x8410,0x8410,0x8410,0x8430,0x8430,0x8430,0x8430,
+    0x8c51,0x8c51,0x8c51,0x8c51,0x8c71,0x8c71,0x8c71,0x8c71,
+    0x9492,0x9492,0x9492,0x9492,0x94b2,0x94b2,0x94b2,0x94b2,
+    0x9cd3,0x9cd3,0x9cd3,0x9cd3,0x9cf3,0x9cf3,0x9cf3,0x9cf3,
+    0xa514,0xa514,0xa514,0xa514,0xa534,0xa534,0xa534,0xa534,
+    0xad55,0xad55,0xad55,0xad55,0xad75,0xad75,0xad75,0xad75,
+    0xb596,0xb596,0xb596,0xb596,0xb5b6,0xb5b6,0xb5b6,0xb5b6,
+    0xbdd7,0xbdd7,0xbdd7,0xbdd7,0xbdf7,0xbdf7,0xbdf7,0xbdf7,
+    0xc618,0xc618,0xc618,0xc618,0xc638,0xc638,0xc638,0xc638,
+    0xce59,0xce59,0xce59,0xce59,0xce79,0xce79,0xce79,0xce79,
+    0xd69a,0xd69a,0xd69a,0xd69a,0xd6ba,0xd6ba,0xd6ba,0xd6ba,
+    0xdedb,0xdedb,0xdedb,0xdedb,0xdefb,0xdefb,0xdefb,0xdefb,
+    0xe71c,0xe71c,0xe71c,0xe71c,0xe73c,0xe73c,0xe73c,0xe73c,
+    0xef5d,0xef5d,0xef5d,0xef5d,0xef7d,0xef7d,0xef7d,0xef7d,
+    0xf79e,0xf79e,0xf79e,0xf79e,0xf7be,0xf7be,0xf7be,0xf7be,
+    0xffdf,0xffdf,0xffdf,0xffdf,0xffff,0xffff,0xffff,0xffff};
+
 //
 // API for C
 //
@@ -1763,6 +1796,49 @@ static void JPEGIDCT(JPEGIMAGE *pJPEG, int iMCUOffset, int iQuantTable, int iACF
         pOutput   += 8;
     } // for each row
 }     /* JPEGIDCT() */
+
+// render grayscale MCU as either 1-bit or RGB565
+static void JPEGPutMCUGray(JPEGIMAGE *pJPEG, int x, int y)
+{
+    int i, j, xcount, ycount;
+    uint8_t *pSrc = (uint8_t *)&pJPEG->sMCUs[0];
+
+    // For odd-sized JPEGs, don't draw past the edge of the image bounds
+    xcount = ycount = 8;
+    if (x + 8 > pJPEG->iWidth) xcount = pJPEG->iWidth & 7;
+    if (y + 8 > pJPEG->iHeight) ycount = pJPEG->iHeight & 7;
+    if (pJPEG->ucPixelType == ONE_BIT_GRAYSCALE) {
+        const int iPitch = ((pJPEG->iWidth + 31) >> 3) & 0xfffc;
+        uint8_t *pDest = (uint8_t *) &pJPEG->pImage[(y * iPitch) + (x >> 3)];
+
+        for (i = 0; i < ycount; i++) {
+            // do up to 8 rows
+            uint8_t ucPixels = 0;
+            for (j = 0; j < xcount; j++) {
+                if (pSrc[j] > 127) {
+                    ucPixels |= (1 << j);
+                }
+            }
+            pDest[0] = ucPixels; // one byte holds the 8 pixels
+            pSrc    += 8;
+            pDest   += iPitch; // next line
+        }
+    } else { // must be RGB565 output
+        const int iPitch = pJPEG->iWidth;
+        uint16_t *usDest = (uint16_t *)&pJPEG->pImage[(y * iPitch * 2) + x*2]; 
+
+        for (i=0; i<ycount; i++) // do up to 8 rows
+        {
+            for (j=0; j<xcount; j++) {
+                *usDest++ = usGrayTo565[*pSrc++];
+            }
+            pSrc += (8-xcount);
+            usDest -= xcount;
+            usDest += iPitch; // next line
+        }
+    } // RGB565
+} /* JPEGPutMCUGray() */
+
 static void JPEGPutMCU8BitGray(JPEGIMAGE *pJPEG, int x, int y)
 {
     int i, j, xcount, ycount;
@@ -1791,11 +1867,14 @@ static void JPEGPutMCU8BitGray(JPEGIMAGE *pJPEG, int x, int y)
         } else if (pJPEG->iOptions & JPEG_SCALE_EIGHTH) {
             xcount = ycount = 1;
         }
+        if ((x + 8) > pJPEG->iWidth) xcount = pJPEG->iWidth & 7;
+        if ((y + 8) > pJPEG->iHeight) ycount = pJPEG->iHeight & 7; 
         for (i = 0; i < ycount; i++) {
             // do up to 8 rows
             for (j = 0; j < xcount; j++) {
                 *pDest++ = *pSrc++;
             }
+            pSrc += (8 - xcount);
             pDest -= xcount;
             pDest += iPitch; // next line
         }
@@ -1939,12 +2018,15 @@ static void JPEGPutMCU8BitGray(JPEGIMAGE *pJPEG, int x, int y)
             }
             return;
         }
-        for (i = 0; i < 8; i++) {
-            for (j = 0; j < 8; j++) {
-                pDest[j]     = pSrc[j];                    // Y0
-                pDest[j + 8] = pSrc[j + 128];              // Y1
-                pDest[iPitch * 8 + j] = pSrc[j + 256];     // Y2
-                pDest[iPitch * 8 + j + 8] = pSrc[j + 384]; // Y3
+        xcount = ycount = 16;
+        if ((x + 16) > pJPEG->iWidth) xcount = pJPEG->iWidth & 15;
+        if ((y + 16) > pJPEG->iHeight) ycount = pJPEG->iHeight & 15;
+// The source MCUs are 64 bytes of data at offsets of 0, 128, 256, 384
+// The 4 8x8 MCUs are looping through using a single pass of x/y by
+// using the 0/8 bit of the coordinate to adjust the source data offset
+        for (i = 0; i < ycount; i++) {
+            for (j = 0; j < xcount; j++) {
+                pDest[j] = pSrc[j+((i&8)*24)+((j&8)*15)];
             }
             pSrc  += 8;
             pDest += iPitch;
@@ -2290,7 +2372,7 @@ static void JPEGPutMCU22(JPEGIMAGE *pJPEG, int x, int y)
 {
     uint32_t Cr,Cb;
     signed int Y1, Y2, Y3, Y4;
-    int iRow, iCol, iXCount1, iXCount2, iYCount;
+    int iRow, iRowLimit, iCol, iXCount1, iXCount2, iYCount;
     unsigned char *pY, *pCr, *pCb;
     const int iPitch = pJPEG->iWidth;
     int bUseOdd1, bUseOdd2; // special case where 24bpp odd sized image can clobber first column
@@ -2383,6 +2465,12 @@ static void JPEGPutMCU22(JPEGIMAGE *pJPEG, int x, int y)
     }
     /* Convert YCC pixels into RGB pixels and store in output image */
     iYCount  = 4;
+    iRowLimit = 16; // assume all rows possible to draw
+    if ((y + 15) >= pJPEG->iHeight) {
+        iRowLimit = pJPEG->iHeight & 15;
+        if (iRowLimit < 8)
+            iYCount = iRowLimit >> 1;
+    }
     bUseOdd1 = bUseOdd2 = 1; // assume odd column can be used
     if ((x + 15) >= pJPEG->iWidth) {
         iCol = (((pJPEG->iWidth & 15) + 1) >> 1);
@@ -2446,6 +2534,7 @@ static void JPEGPutMCU22(JPEGIMAGE *pJPEG, int x, int y)
                     JPEGPixelLE(pOutput + iPitch + 8 + (iCol << 1), Y3, Cb, Cr);
                 }
             }
+            if (iRowLimit > 8) {
             // for bottom left block
             Y1   = pY[iCol * 2 + DCTSIZE * 4];
             Y2   = pY[iCol * 2 + 1 + DCTSIZE * 4];
@@ -2486,6 +2575,7 @@ static void JPEGPutMCU22(JPEGIMAGE *pJPEG, int x, int y)
                     JPEGPixelLE(pOutput + iPitch * 9 + 8 + (iCol << 1), Y3, Cb, Cr);
                 }
             }
+            } // row limit > 8
         } // for each column
         pY      += 16; // skip to next line of source pixels
         pCb     += 8;
@@ -3035,9 +3125,9 @@ static int DecodeJPEG(JPEGIMAGE *pJPEG)
                 JPEGPutMCU1BitGray(pJPEG, x * mcuCX, y * mcuCY);
             } else {
                 switch (pJPEG->ucSubSample) {
-//                    case 0x00: // grayscale
-//                        JPEGPutMCUGray(pJPEG, x * mcuCX, y * mcuCY);
-//                        break; // not used
+                    case 0x00: // grayscale
+                        JPEGPutMCUGray(pJPEG, x * mcuCX, y * mcuCY);
+                        break; // not used
                     case 0x11:
                         JPEGPutMCU11(pJPEG, x * mcuCX, y * mcuCY);
                         break;

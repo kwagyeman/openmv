@@ -22,7 +22,6 @@
 #include "omv_i2c.h"
 #include "sensor.h"
 #include "framebuffer.h"
-#include "unaligned_memcpy.h"
 
 // Sensor struct.
 sensor_t sensor = {};
@@ -32,18 +31,6 @@ extern uint8_t _line_buf[OMV_LINE_BUF_SIZE];
                           | CSI_CR1_FB2_DMA_DONE_INTEN_MASK \
                           | CSI_CR1_FB1_DMA_DONE_INTEN_MASK)
 //CSI_CR1_RF_OR_INTEN_MASK
-
-#define copy_line(dstp, srcp)                              \
-    for (int i = MAIN_FB()->u, h = MAIN_FB()->v; i; i--) { \
-        *dstp = *srcp++;                                   \
-        dstp += h;                                         \
-    }
-
-#define copy_line_rev(dstp, srcp)                          \
-    for (int i = MAIN_FB()->u, h = MAIN_FB()->v; i; i--) { \
-        *dstp = __REV16(*srcp++);                          \
-        dstp += h;                                         \
-    }
 
 void sensor_init0() {
     sensor_abort();
@@ -188,119 +175,15 @@ void sensor_sof_callback() {
 }
 
 void sensor_line_callback(uint32_t addr) {
-    // Get current framebuffer.
-    vbuffer_t *buffer = framebuffer_get_tail(FB_PEEK);
+    sensor_snapshot_line_callback(addr);
 
-    // Copy from DMA buffer to framebuffer.
-    uint32_t bytes_per_pixel = sensor_get_src_bpp();
-    uint8_t *src = ((uint8_t *) addr) + (MAIN_FB()->x * bytes_per_pixel);
-    uint8_t *dst = buffer->data;
-
-    // Adjust BPP for Grayscale.
-    if (sensor.pixformat == PIXFORMAT_GRAYSCALE) {
-        bytes_per_pixel = 1;
-    }
-
-    if (sensor.transpose) {
-        dst += bytes_per_pixel * buffer->offset;
-    } else {
-        dst += MAIN_FB()->u * bytes_per_pixel * buffer->offset;
-    }
-
-    // Implement per line, per pixel cropping, and image transposing (for image rotation) in
-    // in software using the CPU to transfer the image from the line buffers to the frame buffer.
-    uint16_t *src16 = (uint16_t *) src;
-    uint16_t *dst16 = (uint16_t *) dst;
-
-    switch (sensor.pixformat) {
-        case PIXFORMAT_BAYER:
-            #if (OMV_ENABLE_SENSOR_EDMA == 1)
-            edma_memcpy(buffer, dst, src, sizeof(uint8_t), sensor.transpose);
-            #else
-            if (!sensor.transpose) {
-                unaligned_memcpy(dst, src, MAIN_FB()->u);
-            } else {
-                copy_line(dst, src);
-            }
-            #endif
-            break;
-        case PIXFORMAT_GRAYSCALE:
-            #if (OMV_ENABLE_SENSOR_EDMA == 1)
-            edma_memcpy(buffer, dst, src, sizeof(uint8_t), sensor.transpose);
-            #else
-            if (sensor.hw_flags.gs_bpp == 1) {
-                // 1BPP GRAYSCALE.
-                if (!sensor.transpose) {
-                    unaligned_memcpy(dst, src, MAIN_FB()->u);
-                } else {
-                    copy_line(dst, src);
-                }
-            } else {
-                // Extract Y channel from YUV.
-                if (!sensor.transpose) {
-                    unaligned_2_to_1_memcpy(dst, src16, MAIN_FB()->u);
-                } else {
-                    copy_line(dst, src16);
-                }
-            }
-            #endif
-            break;
-        case PIXFORMAT_RGB565:
-        case PIXFORMAT_YUV422:
-            #if (OMV_ENABLE_SENSOR_EDMA == 1)
-            edma_memcpy(buffer, dst16, src16, sizeof(uint16_t), sensor.transpose);
-            #else
-            if ((sensor.pixformat == PIXFORMAT_RGB565 && sensor.hw_flags.rgb_swap)
-                || (sensor.pixformat == PIXFORMAT_YUV422 && sensor.hw_flags.yuv_swap)) {
-                if (!sensor.transpose) {
-                    unaligned_memcpy_rev16(dst16, src16, MAIN_FB()->u);
-                } else {
-                    copy_line_rev(dst16, src16);
-                }
-            } else {
-                if (!sensor.transpose) {
-                    unaligned_memcpy(dst16, src16, MAIN_FB()->u * sizeof(uint16_t));
-                } else {
-                    copy_line(dst16, src16);
-                }
-            }
-            #endif
-            break;
-        default:
-            break;
-    }
-
-    if (++buffer->offset == MAIN_FB()->v) {
-        // Release the current framebuffer.
-        framebuffer_get_tail(FB_NO_FLAGS);
+    if (buffer->offset == MAIN_FB()->v) {
+        sensor_snapshot_end_of_frame();
         CSI_REG_CR3(CSI) &= ~CSI_CR3_DMA_REQ_EN_RFF_MASK;
     }
 }
 
-// This is the default snapshot function, which can be replaced in sensor_init functions.
-int sensor_snapshot(sensor_t *sensor, image_t *image, uint32_t flags) {
-    // Used to restore MAIN_FB's width and height.
-    uint32_t w = MAIN_FB()->u;
-    uint32_t h = MAIN_FB()->v;
-
-    if (sensor->pixformat == PIXFORMAT_INVALID) {
-        return SENSOR_ERROR_INVALID_PIXFORMAT;
-    }
-
-    if (sensor->framesize == FRAMESIZE_INVALID) {
-        return SENSOR_ERROR_INVALID_FRAMESIZE;
-    }
-
-    if (sensor_check_framebuffer_size() != 0) {
-        return SENSOR_ERROR_FRAMEBUFFER_OVERFLOW;
-    }
-
-    // Compress the framebuffer for the IDE preview.
-    framebuffer_update_jpeg_buffer();
-
-    // Free the current FB head.
-    framebuffer_free_current_buffer();
-
+int sensor_snapshot_dma_setup(sensor_t *sensor, int w, int h) {
     // If the DMA is Not currently transferring a new buffer,
     // reconfigure and restart the CSI transfer.
     if (!(CSI->CR18 & CSI_CR18_CSI_ENABLE_MASK)) {
@@ -324,71 +207,6 @@ int sensor_snapshot(sensor_t *sensor, image_t *image, uint32_t flags) {
         // Enable CSI
         CSI_REG_CR18(CSI) |= CSI_CR18_CSI_ENABLE_MASK;
     }
-
-    // Let the camera know we want to trigger it now.
-    #if defined(DCMI_FSYNC_PIN)
-    if (sensor->hw_flags.fsync) {
-        omv_gpio_write(DCMI_FSYNC_PIN, 1);
-    }
-    #endif
-
-    vbuffer_t *buffer = framebuffer_get_head(FB_NO_FLAGS);
-    // Wait for the DMA to finish the transfer.
-    for (mp_uint_t ticks = mp_hal_ticks_ms(); buffer == NULL;) {
-        buffer = framebuffer_get_head(FB_NO_FLAGS);
-        if ((mp_hal_ticks_ms() - ticks) > 3000) {
-            sensor_abort();
-
-            #if defined(DCMI_FSYNC_PIN)
-            if (sensor->hw_flags.fsync) {
-                omv_gpio_write(DCMI_FSYNC_PIN, 0);
-            }
-            #endif
-
-            return SENSOR_ERROR_CAPTURE_TIMEOUT;
-        }
-    }
-
-    // We're done receiving data.
-    #if defined(DCMI_FSYNC_PIN)
-    if (sensor->hw_flags.fsync) {
-        omv_gpio_write(DCMI_FSYNC_PIN, 0);
-    }
-    #endif
-
-    if (!sensor->transpose) {
-        MAIN_FB()->w = w;
-        MAIN_FB()->h = h;
-    } else {
-        MAIN_FB()->w = h;
-        MAIN_FB()->h = w;
-    }
-
-    // Fix the BPP.
-    switch (sensor->pixformat) {
-        case PIXFORMAT_GRAYSCALE:
-            MAIN_FB()->pixfmt = PIXFORMAT_GRAYSCALE;
-            break;
-        case PIXFORMAT_RGB565:
-            MAIN_FB()->pixfmt = PIXFORMAT_RGB565;
-            break;
-        case PIXFORMAT_BAYER:
-            MAIN_FB()->pixfmt = PIXFORMAT_BAYER;
-            MAIN_FB()->subfmt_id = sensor->hw_flags.bayer;
-            break;
-        case PIXFORMAT_YUV422: {
-            bool yuv_order = sensor->hw_flags.yuv_order == SENSOR_HW_FLAGS_YUV422;
-            int even = yuv_order ? PIXFORMAT_YUV422 : PIXFORMAT_YVU422;
-            int odd = yuv_order ? PIXFORMAT_YVU422 : PIXFORMAT_YUV422;
-            MAIN_FB()->pixfmt = (MAIN_FB()->x % 2) ? odd : even;
-            break;
-        }
-        default:
-            break;
-    }
-
-    // Set the user image.
-    framebuffer_init_image(image);
     return 0;
 }
 #endif

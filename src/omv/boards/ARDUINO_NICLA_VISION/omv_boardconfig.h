@@ -74,6 +74,9 @@
 // Enable self-tests on first boot
 #define OMV_ENABLE_SELFTEST                   (0)
 
+// Enable sensor dma offload.
+#define OMV_ENABLE_SENSOR_DMA_OFFLOAD         (1)
+
 // If buffer size is bigger than this threshold, the quality is reduced.
 // This is only used for JPEG images sent to the IDE not normal compression.
 #define JPEG_QUALITY_THRESH                   (320 * 240 * 2)

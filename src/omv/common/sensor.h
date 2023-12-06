@@ -246,6 +246,8 @@ typedef struct _sensor {
     bool transpose;             // Transpose Image
     bool auto_rotation;         // Rotate Image Automatically
     bool detected;              // Set to true when the sensor is initialized.
+    bool first_line;            // False on the first line.
+    bool drop_frame;            // Set to True to drop the frame.
 
     omv_i2c_t i2c_bus;          // SCCB/I2C bus.
 
@@ -446,6 +448,8 @@ int sensor_auto_crop_framebuffer();
 
 // Default snapshot function.
 int sensor_snapshot(sensor_t *sensor, image_t *image, uint32_t flags);
+void sensor_snapshot_end_of_frame();
+void sensor_snapshot_line_callback(uint32_t addr);
 
 // Convert sensor error codes to strings.
 const char *sensor_strerror(int error);

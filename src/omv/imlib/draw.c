@@ -327,28 +327,32 @@ void imlib_draw_circle(image_t *img, int cx, int cy, int r, int c, int thickness
     }
 }
 
+// https://gist.github.com/randvoorhies/807ce6e20840ab5314eb7c547899de68#file-bresenham-js-L560
 static void plot_quad_rational_bezier_seg_aa(image_t *img, int x0, int y0, int x1, int y1, int x2, int y2, float w, int c) {
     // Draw an anti-aliased rational quadratic Bezier segment, squared weight.
     // Relative values for checks.
-    int sx = x2 - x1;
-    int sy = y2 - y1;
+    float sx = x2 - x1;
+    float sy = y2 - y1;
 
     float dx = x0 - x2;
     float dy = y0 - y2;
     float xx = x0 - x1;
     float yy = y0 - y1;
 
-    float err, ed;  // Curvature.
+    // Curvature.
     float xy = xx * sy + yy * sx;
     float cur = xx * sy - yy * sx;
+    float err, ed;
+
+    // Sign of gradient must not change.
     if (!(xx * sx <= 0.0 && yy * sy <= 0.0)) {
-        return;                              // Sign of gradient must not change.
+        return;
     }
 
+    // No straight line.
     if (cur != 0.0 && w > 0.0) {
-        // No straight line.
-        if (sx * (long) sx + sy * (long) sy > xx * xx + yy * yy) {
-            // Begin with longer part.
+        // Begin with shorter part.
+        if (sx * sx + sy * sy > xx * xx + yy * yy) {
             // Swap p0 p2.
             x2 = x0;
             x0 -= dx;
@@ -356,117 +360,112 @@ static void plot_quad_rational_bezier_seg_aa(image_t *img, int x0, int y0, int x
             y0 -= dy;
             cur = -cur;
         }
-        xx = 2.0 * (4.0 * w * sx * xx + dx * dx);   // Differences 2nd degree.
-        yy = 2.0 * (4.0 * w * sy * yy + dy * dy);
-        sx = x0 < x2 ? 1 : -1;                            // X step direction.
-        sy = y0 < y2 ? 1 : -1;                            // Y step direction.
-        xy = -2.0 * sx * sy * (2.0 * w * xy + dx * dy);
 
-        if (cur * sx * sy < 0) {
-            // Negated curvature.
+        // Differences 2nd degree.
+        xx = 2.0f * (4.0f * w * sx * xx + dx * dx);
+        yy = 2.0f * (4.0f * w * sy * yy + dy * dy);
+
+        // X step direction.
+        sx = x0 < x2 ? 1 : -1;
+
+        // Y step direction.
+        sy = y0 < y2 ? 1 : -1;
+
+        xy = -2.0f * sx * sy * (2.0f * w * xy + dx * dy);
+
+        // Negated curvature.
+        if (cur * sx * sy < 0.0f) {
             xx = -xx;
             yy = -yy;
             cur = -cur;
             xy = -xy;
         }
-        dx = 4.0 * w * (x1 - x0) * sy * cur + xx / 2.0 + xy; // Differences 1st degree.
-        dy = 4.0 * w * (y0 - y1) * sx * cur + yy / 2.0 + xy;
 
-        if (w < 0.5 && dy > dx) {
-            // Flat ellipse, algorithm fails.
-            cur = (w + 1.0) / 2.0;
+        // Differences 1st degree.
+        dx = 4.0f * w * (x1 - x0) * sy * cur + xx / 2.0f + xy;
+        dy = 4.0f * w * (y0 - y1) * sx * cur + yy / 2.0f + xy;
+
+        // Flat ellipse, algorithm fails.
+        if (w < 0.5f && dy > dx) {
+            cur = (w + 1.0f) / 2.0f;
             w = fast_sqrtf(w);
-            xy = 1.0 / (w + 1.0);
-            sx = fast_floorf((x0 + 2.0 * w * x1 + x2) * xy / 2.0 + 0.5);  // Subdivide curve in half.
-            sy = fast_floorf((y0 + 2.0 * w * y1 + y2) * xy / 2.0 + 0.5);
-            dx = fast_floorf((w * x1 + x0) * xy + 0.5);
-            dy = fast_floorf((y1 * w + y0) * xy + 0.5);
-            plot_quad_rational_bezier_seg_aa(img, x0, y0, dx, dy, sx, sy, cur, c); // Plot apart.
-            dx = fast_floorf((w * x1 + x2) * xy + 0.5);
-            dy = fast_floorf((y1 * w + y2) * xy + 0.5);
-            return plot_quad_rational_bezier_seg_aa(img, sx, sy, dx, dy, x2, y2, cur, c);
+            xy = 1.0f / (w + 1.0f);
+            // Subdivide curve.
+            sx = fast_roundf((x0 + 2.0f * w * x1 + x2) * xy / 2.0f);
+            sy = fast_roundf((y0 + 2.0f * w * y1 + y2) * xy / 2.0f);
+            // Plot apart.
+            dx = fast_roundf((w * x1 + x0) * xy);
+            dy = fast_roundf((y1 * w + y0) * xy);
+            plot_quad_rational_bezier_seg_aa(img, x0, y0, dx, dy, sx, sy, cur, c);
+            dx = fast_roundf((w * x1 + x2) * xy);
+            dy = fast_roundf((y1 * w + y2) * xy);
+            plot_quad_rational_bezier_seg_aa(img, sx, sy, dx, dy, x2, y2, cur, c);
+            return;
         }
-        err = dx + dy - xy;                                 // Error 1st step.
+
+        // Error 1st step.
+        err = dx + dy - xy;
+
+        // Pixel loop.
         do {
-            // Pixel loop.
             cur = IM_MIN(dx - xy, xy - dy);
             ed = IM_MAX(dx - xy, xy - dy);
-            ed += 2 * ed * cur * cur / (4. * ed * ed + cur * cur); // Approximate error distance.
-            x1 = 256 * fast_fabsf(err - dx - dy + xy) / ed; // Get blend value by pixel error.
+
+            // Approximate error distance.
+            ed += 2.0f * ed * cur * cur / (4.0f * ed * ed + cur * cur);
+
+            // Get blend value by pixel error.
+            x1 = 256 * fast_fabsf(err - dx - dy + xy) / ed;
+
+            // Plot curve.
             if (x1 < 256) {
-                imlib_set_pixel_aa(img, x0, y0, x1, c);                          // Plot curve.
+                imlib_set_pixel_aa(img, x0, y0, x1, c);
             }
-            bool f = (2 * err + dy < 0);
+
+            // Y step
+            bool f = (2.0f * err + dy) < 0;
             if (f) {
-                // Y step
+                // Last pixel -> curve finished.
                 if (y0 == y2) {
-                    return;                   // Last pixel -> curve finished.
+                    return;
                 }
                 if (dx - err < ed) {
                     imlib_set_pixel_aa(img, x0 + sx, y0, 256 * fast_fabsf(dx - err) / ed, c);
                 }
             }
-            if (2 * err + dx > 0) {
-                // x step
+
+            // X step
+            if (2.0f * err + dx > 0) {
+                // Last pixel -> curve finished.
                 if (x0 == x2) {
-                    return;                   // Last pixel -> curve finished.
+                    return;
                 }
                 if (err - dy < ed) {
                     imlib_set_pixel_aa(img, x0, y0 + sy, 256 * fast_fabsf(err - dy) / ed, c);
                 }
                 x0 += sx;
                 dx += xy;
-                err += dy += yy;
+                dy += yy;
+                err += dy;
             }
+
+            // Y step.
             if (f) {
                 y0 += sy;
                 dy += xy;
-                err += dx += xx;
-            }                                                       // Y step.
-        } while (dy < dx);             // Gradient negates -> algorithm fails.
+                dx += xx;
+                err += dx;
+            }
+
+            // Gradient negates -> algorithm fails.
+        } while (dy < dx);
     }
-    imlib_draw_thin_line(img, x0, y0, x2, y2, c);                 // Plot remaining needle to end.
+
+    // Plot remaining needle to end.
+    imlib_draw_thin_line(img, x0, y0, x2, y2, c);
 }
 
-static void plot_rotated_ellipse_rect_aa(image_t *img, int x0, int y0, int x1, int y1, float zd, int c) {
-    // Rectangle enclosing the ellipse, integer rotation angle.
-    int xd = x1 - x0;
-    int yd = y1 - y0;
-    float w = xd * (long) yd;
-    if (w != 0.0) {
-        w = (w - zd) / (w + w);     // Squared weight of p1.
-    }
-    if (!(w <= 1. && w >= 0)) {
-        return;                        // Limit angle to |zd|<=xd*yd.
-    }
-    // Snap to int.
-    xd = fast_floorf(xd * w + 0.5);
-    yd = fast_floorf(yd * w + 0.5);
-
-    plot_quad_rational_bezier_seg_aa(img, x0, y0 + yd, x0, y0, x0 + xd, y0, 1.0 - w, c);
-    plot_quad_rational_bezier_seg_aa(img, x0, y0 + yd, x0, y1, x1 - xd, y1, w, c);
-    plot_quad_rational_bezier_seg_aa(img, x1, y1 - yd, x1, y1, x1 - xd, y1, 1.0 - w, c);
-    plot_quad_rational_bezier_seg_aa(img, x1, y1 - yd, x1, y0, x0 + xd, y0, w, c);
-}
-
-void imlib_draw_rotated_thin_ellipse_aa(image_t *img, int x, int y, int a, int b, int angle, int c) {
-    // Plot ellipse rotated by angle (degree).
-    float xd = (long) a * a;
-    float yd = (long) b * b;
-
-    //  Ellipse rotation.
-    float s = sin_table[angle];
-    float zd = (xd - yd) * s;
-
-    //  Surrounding rect.
-    xd = fast_sqrtf(xd - zd * s);
-    yd = fast_sqrtf(yd + zd * s);
-    a = fast_floorf(xd + .5);
-    b = fast_floorf(yd + .5);
-    zd *= a * b / (xd * yd);
-    plot_rotated_ellipse_rect_aa(img, x - a, y - b, x + a, y + b, (long) (4 * zd * cos_table[angle]), c);
-}
-
+// https://gist.github.com/randvoorhies/807ce6e20840ab5314eb7c547899de68#file-bresenham-js-L909
 static void plot_quad_rational_bezier_width_seg(image_t *img,
                                                 int x0,
                                                 int y0,
@@ -486,19 +485,21 @@ static void plot_quad_rational_bezier_width_seg(image_t *img,
     float dy = y0 - y2;
     float xx = x0 - x1;
     float yy = y0 - y1;
-    float xy = xx * sy + yy * sx;
-    float cur = xx * sy - yy * sx;
-    float err, e2, ed;        // Curvature.
 
-    if (!(xx * sx <= 0.0 && yy * sy <= 0.0)) {
-        // Sign of gradient must not change.
+    // Curvature.
+    float xy = (xx * sy) + (yy * sx);
+    float cur = (xx * sy) - (yy * sx);
+    float err, e2, ed;
+
+    // Sign of gradient must not change.
+    if (!(((xx * sx) <= 0.0f) && ((yy * sy) <= 0.0f))) {
         return;
     }
 
-    if (cur != 0.0 && w > 0.0) {
-        // No straight line.
-        if (sx * sx + sy * sy > xx * xx + yy * yy) {
-            // Begin with longer part.
+    // No straight line.
+    if ((cur != 0.0f) && (w > 0.0f)) {
+        // Begin with longer part.
+        if (((sx * sx) + (sy * sy)) > ((xx * xx) + (yy * yy))) {
             // Swap p0 p2.
             x2 = x0;
             x0 -= dx;
@@ -507,328 +508,255 @@ static void plot_quad_rational_bezier_width_seg(image_t *img,
             cur = -cur;
         }
 
-        xx = 2.0 * (4.0 * w * sx * xx + dx * dx);   // Differences 2nd degree.
-        yy = 2.0 * (4.0 * w * sy * yy + dy * dy);
-        sx = x0 < x2 ? 1 : -1;                            // X step direction.
-        sy = y0 < y2 ? 1 : -1;                            // Y step direction.
-        xy = -2.0 * sx * sy * (2.0 * w * xy + dx * dy);
+        // Differences 2nd degree.
+        xx = 2.0f * ((4.0f * w * sx * xx) + (dx * dx));
+        yy = 2.0f * ((4.0f * w * sy * yy) + (dy * dy));
 
-        if (cur * sx * sy < 0) {
-            // Negated curvature.
+        // X step direction.
+        sx = x0 < x2 ? 1 : -1;
+
+        // Y step direction.
+        sy = y0 < y2 ? 1 : -1;
+
+        xy = -2.0f * sx * sy * ((2.0f * w * xy) + (dx * dy));
+
+        // Negated curvature?
+        if ((cur * sx * sy) < 0) {
             xx = -xx;
             yy = -yy;
             cur = -cur;
             xy = -xy;
         }
-        dx = 4.0 * w * (x1 - x0) * sy * cur + xx / 2.0; // Differences 1st degree.
-        dy = 4.0 * w * (y0 - y1) * sx * cur + yy / 2.0;
 
-        if (w < 0.5 && (dx + xx <= 0 || dy + yy >= 0)) {
-            // Flat ellipse, algo fails.
-            cur = (w + 1.0) / 2.0;
+        // Differences 1st degree.
+        dx = (4.0f * w * (x1 - x0) * sy * cur) + xx / 2.0;
+        dy = (4.0f * w * (y0 - y1) * sx * cur) + yy / 2.0;
+
+        // Flat ellipse, algo fails.
+        if ((w < 0.5f) && (((dx + xx) <= 0) || ((dy + yy) >= 0))) {
+            cur = (w + 1.0f) / 2.0f;
             w = fast_sqrtf(w);
-            xy = 1.0 / (w + 1.0);
-            sx = fast_floorf((x0 + 2.0 * w * x1 + x2) * xy / 2.0 + 0.5); // Subdivide curve.
-            sy = fast_floorf((y0 + 2.0 * w * y1 + y2) * xy / 2.0 + 0.5); // Plot separately.
-            dx = fast_floorf((w * x1 + x0) * xy + 0.5);
-            dy = fast_floorf((y1 * w + y0) * xy + 0.5);
+            xy = 1.0f / (w + 1.0f);
+            // Subdivide curve.
+            sx = fast_roundf((x0 + (2.0f * w * x1) + x2) * xy / 2.0);
+            sy = fast_roundf((y0 + (2.0f * w * y1) + y2) * xy / 2.0);
+            // Plot separately.
+            dx = fast_roundf(((w * x1) + x0) * xy);
+            dy = fast_roundf(((y1 * w) + y0) * xy);
             plot_quad_rational_bezier_width_seg(img, x0, y0, dx, dy, sx, sy, cur, c, th);
-            dx = fast_floorf((w * x1 + x2) * xy + 0.5);
-            dy = fast_floorf((y1 * w + y2) * xy + 0.5);
-            return plot_quad_rational_bezier_width_seg(img, sx, sy, dx, dy, x2, y2, cur, c, th);
+            dx = fast_roundf(((w * x1) + x2) * xy);
+            dy = fast_roundf(((y1 * w) + y2) * xy);
+            plot_quad_rational_bezier_width_seg(img, sx, sy, dx, dy, x2, y2, cur, c, th);
+            return;
         }
+
         fail:
-        for (err = 0; dy + 2 * yy < 0 && dx + 2 * xx > 0; ) {
-            // Loop of steep/flat curve.
-            if (dx + dy + xy < 0) {
-                // Steep curve.
+        // Loop of steep/flat curve.
+        for (err = 0; (dy + (2 * yy) < 0) && ((dx + (2 * xx)) > 0); ) {
+            // Steep curve.
+            if ((dx + dy + xy) < 0) {
                 do {
-                    ed = -dy - 2 * dy * dx * dx / (4. * dy * dy + dx * dx); // Approximate sqrt.
-                    w = (th - 1) * ed;                    // Scale line width.
-                    x1 = fast_floorf((err - ed - w / 2) / dy); // Start offset.
-                    e2 = err - x1 * dy - w / 2;      // Error value at offset.
-                    x1 = x0 - x1 * sx;                         // Start point.
+                    // Approximate sqrt.
+                    ed = -dy - ((2.0f * dy * dx * dx) / (4.0f * dy * dy + dx * dx));
 
-                    imlib_set_pixel_aa(img, x1, y0, 256 * e2 / ed, c);  // Aliasing pre-pixel.
-                    for (e2 = -w - dy - e2; e2 - dy < ed; e2 -= dy) {
-                        imlib_set_pixel(img, x1 += sx, y0, c);        // Pixel on thick line.
+                    // Scale line width.
+                    w = (th - 1.0f) * ed;     
+
+                    // Start offset.
+                    x1 = fast_floorf((err - ed - (w / 2)) / dy);
+
+                    // Error value at offset.
+                    e2 = err - x1 * dy - w / 2;
+
+                    // Start point.
+                    x1 = x0 - (x1 * sx);                         
+
+                    // Aliasing pre-pixel.
+                    imlib_set_pixel_aa(img, x1, y0, 256 * e2 / ed, c);
+
+                    // Pixel on thick line.
+                    for (e2 = -w - dy - e2; (e2 - dy) < ed; e2 -= dy, x1 += sx) {
+                        imlib_set_pixel(img, x1, y0, c);
                     }
-                    imlib_set_pixel_aa(img, x1 + sx, y0, 256 * e2 / ed, c); // Aliasing post-pixel.
 
+                    // Aliasing post-pixel.
+                    imlib_set_pixel_aa(img, x1 + sx, y0, 256 * e2 / ed, c);
+
+                    // Last pixel -> curve finished.
                     if (y0 == y2) {
                         return;
-                    }      // Last pixel -> curve finished.
+                    }
+
                     // Y step.
                     y0 += sy;
                     dy += xy;
                     err += dx;
                     dx += xx;
-                    if (2 * err + dy > 0) {
-                        // E_x+e_xy > 0.
+
+                    // e_x+e_xy > 0.
+                    if (((2 * err) + dy) > 0) {
                         // X step.
                         x0 += sx;
                         dx += xy;
                         err += dy;
                         dy += yy;
                     }
-                    if (x0 != x2 && (dx + 2 * xx <= 0 || dy + 2 * yy >= 0)) {
+
+                    if ((x0 != x2) && (((dx + (2 * xx)) <= 0) || ((dy + (2 * yy)) >= 0))) {
                         if (fabsf(y2 - y0) > fabsf(x2 - x0)) {
                             goto fail;
                         } else {
+                            // Other curve near.
                             break;
                         }
                     }
-                } while (dx + dy + xy < 0);          // Gradient still steep.
+                    // Gradient still steep?
+                } while ((dx + dy + xy) < 0);
+
                 // Change from steep to flat curve.
-                for (cur = err - dy - w / 2, y1 = y0; cur < ed; y1 += sy, cur += dx) {
-                    for (e2 = cur, x1 = x0; e2 - dy < ed; e2 -= dy) {
-                        imlib_set_pixel(img, x1 -= sx, y1, c);          // Pixel on thick line.
+                for (cur = err - dy - (w / 2), y1 = y0; cur < ed; y1 += sy, cur += dx) {
+                    for (e2 = cur, x1 = x0; (e2 - dy) < ed; e2 -= dy, x1 -= sx) {
+                        // Pixel on thick line.
+                        imlib_set_pixel(img, x1, y1, c);          
                     }
-                    imlib_set_pixel_aa(img, x1 - sx, y1, 256 * e2 / ed, c); // Aliasing post-pixel.
+                    // Aliasing post-pixel.
+                    imlib_set_pixel_aa(img, x1 - sx, y1, 256 * e2 / ed, c);
                 }
             } else {
                 // Flat curve.
                 do {
-                    ed = dx + 2 * dx * dy * dy / (4. * dx * dx + dy * dy); // Approximate sqrt.
-                    w = (th - 1) * ed;                    // Scale line width.
-                    y1 = fast_floorf((err + ed + w / 2) / dx); // Start offset.
-                    e2 = y1 * dx - w / 2 - err;      // Error value at offset.
-                    y1 = y0 - y1 * sy;                         // Start point.
-                    imlib_set_pixel_aa(img, x0, y1, 256 * e2 / ed, c);  // Aliasing pre-pixel.
-                    for (e2 = dx - e2 - w; e2 + dx < ed; e2 += dx) {
-                        imlib_set_pixel(img, x0, y1 += sy, c);        // Pixel on thick line.
+                    // Approximate sqrt.
+                    ed = dx + 2 * dx * dy * dy / (4.0f * dx * dx + dy * dy);
+
+                    // Scale line width.
+                    w = (th - 1.0f) * ed;
+
+                    // Start offset.
+                    y1 = fast_floorf((err + ed + (w / 2.0f)) / dx);
+
+                    // Error value at offset.
+                    e2 = (y1 * dx) - (w / 2) - err;
+
+                    // Start point.
+                    y1 = y0 - (y1 * sy);
+
+                    // Aliasing pre-pixel.
+                    imlib_set_pixel_aa(img, x0, y1, 256 * e2 / ed, c);
+
+                    // Pixel on thick line.
+                    for (e2 = dx - e2 - w; (e2 + dx) < ed; e2 += dx, y1 += sy) {
+                        imlib_set_pixel(img, x0, y1, c);
                     }
-                    imlib_set_pixel_aa(img, x0, y1 + sy, 256 * e2 / ed, c); // Aliasing post-pixel.
+
+                    // Aliasing post-pixel.
+                    imlib_set_pixel_aa(img, x0, y1 + sy, 256 * e2 / ed, c);
+
+                    // Last pixel -> curve finished.
                     if (x0 == x2) {
-                        return;               // Last pixel -> curve finished.
+                        return;
                     }
+
                     // X step.
                     x0 += sx;
                     dx += xy;
                     err += dy;
                     dy += yy;
-                    if (2 * err + dx < 0) {
-                        // E_y+e_xy < 0.
+
+                    // e_y+e_xy < 0.
+                    if ((2 * err) + dx < 0) {
                         // Y step.
                         y0 += sy;
                         dy += xy;
                         err += dx;
                         dx += xx;
                     }
+
                     if (y0 != y2 && (dx + 2 * xx <= 0 || dy + 2 * yy >= 0)) {
                         if (fast_fabsf(y2 - y0) <= fast_fabsf(x2 - x0)) {
                             goto fail;
                         } else {
+                            // Other curve near.
                             break;
                         }
                     }
-                } while (dx + dy + xy >= 0);          // Gradient still flat.
+                    // Gradient still flat?
+                } while (dx + dy + xy >= 0);
+       
                 // Change from flat to steep curve.
-                for (cur = -err + dx - w / 2, x1 = x0; cur < ed; x1 += sx, cur -= dy) {
-                    for (e2 = cur, y1 = y0; e2 + dx < ed; e2 += dx) {
-                        imlib_set_pixel(img, x1, y1 -= sy, c);   // Pixel on thick line.
+                for (cur = -err + dx - (w / 2), x1 = x0; cur < ed; x1 += sx, cur -= dy) {
+                    for (e2 = cur, y1 = y0; (e2 + dx) < ed; e2 += dx, y1 -= sy) {
+                        // Pixel on thick line.
+                        imlib_set_pixel(img, x1, y1, c);
                     }
-                    imlib_set_pixel_aa(img, x1, y1 - sy, 256 * e2 / ed, c); // Aliasing post-pixel.
+                    // Aliasing post-pixel.
+                    imlib_set_pixel_aa(img, x1, y1 - sy, 256 * e2 / ed, c);
                 }
             }
         }
     }
-    imlib_draw_line(img, x0, y0, x2, y2, c, th);         // Confusing error values.
+
+    // Confusing error values.
+    imlib_draw_line(img, x0, y0, x2, y2, c, th);
 }
 
-static void plot_rotated_ellipse_rect_width(image_t *img, int x0, int y0, int x1, int y1, float zd, int c, int th) {
-    float xd = x1 - x0;
-    float yd = y1 - y0;
-    float w = xd * yd;
-
-    if (w != 0) {
-        w = (w - zd) / (w + w);          // Squared weight of p1.
-    }
-    if (!(w <= 1.0 && w >= 0.0)) {
-        return;               // Limit angle to |zd|<=xd*yd.
-    }
-
-    xd = fast_floorf(xd * w + 0.5);
-    yd = fast_floorf(yd * w + 0.5);  // Snap to int.
-
-
-    plot_quad_rational_bezier_width_seg(img, x0, y0 + yd, x0, y0, x0 + xd, y0, 1 - w, c, th);
-    plot_quad_rational_bezier_width_seg(img, x0, y0 + yd, x0, y1, x1 - xd, y1, w, c, th);
-    plot_quad_rational_bezier_width_seg(img, x1, y1 - yd, x1, y1, x1 - xd, y1, 1 - w, c, th);
-    plot_quad_rational_bezier_width_seg(img, x1, y1 - yd, x1, y0, x0 + xd, y0, w, c, th);
-}
-
-void imlib_draw_rotated_width_ellipse_aa(image_t *img, int x, int y, int a, int b, int angle, int c, int th) {
-    // Plot ellipse rotated by angle (degree).
-    int xd = a * a;
-    int yd = b * b;
-    float s = sin_table[angle];
-    float zd = (xd - yd) * s;          // Ellipse rotation.
-
-    xd = fast_sqrtf(xd - zd * s);
-    yd = fast_sqrtf(yd + zd * s);  // Surrounding rect.
-    a = fast_floorf(xd + 0.5);
-    b = fast_floorf(yd + 0.5);
-    zd = zd * a * b / (xd * yd);
-
-    plot_rotated_ellipse_rect_width(img, x - a, y - b, x + a, y + b, (4 * zd * cos_table[angle]), c, th);
-}
-
-// https://scratch.mit.edu/projects/50039326/
-static void scratch_draw_pixel(image_t *img,
-                               int x0,
-                               int y0,
-                               int dx,
-                               int dy,
-                               float shear_dx,
-                               float shear_dy,
-                               int r0,
-                               int r1,
-                               int c) {
-    point_fill(img, x0 + dx, y0 + dy + fast_floorf((dx * shear_dy) / shear_dx), r0, r1, c);
-}
-
-// https://scratch.mit.edu/projects/50039326/
-static void scratch_draw_line(image_t *img, int x0, int y0, int dx, int dy0, int dy1, float shear_dx, float shear_dy, int c) {
-    int y = y0 + fast_floorf((dx * shear_dy) / shear_dx);
-    yLine(img, x0 + dx, y + dy0, y + dy1, c);
-}
-
-// https://scratch.mit.edu/projects/50039326/
-static void scratch_draw_sheared_ellipse(image_t *img,
-                                         int x0,
-                                         int y0,
-                                         int width,
-                                         int height,
-                                         bool filled,
-                                         float shear_dx,
-                                         float shear_dy,
-                                         int c,
-                                         int thickness) {
-    int thickness0 = (thickness - 0) / 2;
-    int thickness1 = (thickness - 1) / 2;
-    if (((thickness > 0) || filled) && (shear_dx != 0)) {
-        int a_squared = width * width;
-        int four_a_squared = a_squared * 4;
-        int b_squared = height * height;
-        int four_b_squared = b_squared * 4;
-
-        int x = 0;
-        int y = height;
-        int sigma = (2 * b_squared) + (a_squared * (1 - (2 * height)));
-
-        while ((b_squared * x) <= (a_squared * y)) {
-            if (filled) {
-                scratch_draw_line(img, x0, y0, x, -y, y, shear_dx, shear_dy, c);
-                scratch_draw_line(img, x0, y0, -x, -y, y, shear_dx, shear_dy, c);
-            } else {
-                scratch_draw_pixel(img, x0, y0, x, y, shear_dx, shear_dy, -thickness0, thickness1, c);
-                scratch_draw_pixel(img, x0, y0, -x, y, shear_dx, shear_dy, -thickness0, thickness1, c);
-                scratch_draw_pixel(img, x0, y0, x, -y, shear_dx, shear_dy, -thickness0, thickness1, c);
-                scratch_draw_pixel(img, x0, y0, -x, -y, shear_dx, shear_dy, -thickness0, thickness1, c);
-            }
-
-            if (sigma >= 0) {
-                sigma += four_a_squared * (1 - y);
-                y -= 1;
-            }
-
-            sigma += b_squared * ((4 * x) + 6);
-            x += 1;
-        }
-
-        x = width;
-        y = 0;
-        sigma = (2 * a_squared) + (b_squared * (1 - (2 * width)));
-
-        while ((a_squared * y) <= (b_squared * x)) {
-            if (filled) {
-                scratch_draw_line(img, x0, y0, x, -y, y, shear_dx, shear_dy, c);
-                scratch_draw_line(img, x0, y0, -x, -y, y, shear_dx, shear_dy, c);
-            } else {
-                scratch_draw_pixel(img, x0, y0, x, y, shear_dx, shear_dy, -thickness0, thickness1, c);
-                scratch_draw_pixel(img, x0, y0, -x, y, shear_dx, shear_dy, -thickness0, thickness1, c);
-                scratch_draw_pixel(img, x0, y0, x, -y, shear_dx, shear_dy, -thickness0, thickness1, c);
-                scratch_draw_pixel(img, x0, y0, -x, -y, shear_dx, shear_dy, -thickness0, thickness1, c);
-            }
-
-            if (sigma >= 0) {
-                sigma += four_b_squared * (1 - x);
-                x -= 1;
-            }
-
-            sigma += a_squared * ((4 * y) + 6);
-            y += 1;
-        }
-    }
-}
-
-// https://scratch.mit.edu/projects/50039326/
-static void scratch_draw_rotated_ellipse(image_t *img,
-                                         int x,
-                                         int y,
-                                         int x_axis,
-                                         int y_axis,
-                                         int rotation,
-                                         bool filled,
-                                         int c,
-                                         int thickness) {
-    if ((x_axis > 0) && (y_axis > 0)) {
-        if ((x_axis == y_axis) || (rotation == 0)) {
-            scratch_draw_sheared_ellipse(img, x, y, x_axis / 2, y_axis / 2, filled, 1, 0, c, thickness);
-        } else if (rotation == 90) {
-            scratch_draw_sheared_ellipse(img, x, y, y_axis / 2, x_axis / 2, filled, 1, 0, c, thickness);
-        } else {
-
-            // Avoid rotations above 90.
-            if (rotation > 90) {
-                rotation -= 90;
-                int temp = x_axis;
-                x_axis = y_axis;
-                y_axis = temp;
-            }
-
-            // Avoid rotations above 45.
-            if (rotation > 45) {
-                rotation -= 90;
-                int temp = x_axis;
-                x_axis = y_axis;
-                y_axis = temp;
-            }
-
-            float theta = fast_atanf(IM_DIV(y_axis, x_axis) * (-tanf(IM_DEG2RAD(rotation))));
-            float shear_dx = (x_axis * cosf(theta) * cosf(IM_DEG2RAD(rotation))) -
-                             (y_axis * sinf(theta) * sinf(IM_DEG2RAD(rotation)));
-            float shear_dy = (x_axis * cosf(theta) * sinf(IM_DEG2RAD(rotation))) +
-                             (y_axis * sinf(theta) * cosf(IM_DEG2RAD(rotation)));
-            float shear_x_axis = fast_fabsf(shear_dx);
-            float shear_y_axis = IM_DIV((y_axis * x_axis), shear_x_axis);
-            scratch_draw_sheared_ellipse(img,
-                                         x,
-                                         y,
-                                         fast_floorf(shear_x_axis / 2),
-                                         fast_floorf(shear_y_axis / 2),
-                                         filled,
-                                         shear_dx,
-                                         shear_dy,
-                                         c,
-                                         thickness);
-        }
-    }
-}
-
-void imlib_draw_ellipse(image_t *img, int cx, int cy, int rx, int ry, int rotation, int c, int thickness, bool fill) {
+// https://gist.github.com/randvoorhies/807ce6e20840ab5314eb7c547899de68#file-bresenham-js-L1051
+void imlib_draw_ellipse(image_t *img, int cx, int cy, int rx, int ry, int rotation, int c, int th, bool fill) {
     int r = rotation % 180;
     if (r < 0) {
         r += 180;
     }
 
-    if (fill) {
-        return scratch_draw_rotated_ellipse(img, cx, cy, rx * 2, ry * 2, r, fill, c, thickness);
-    } else if (thickness == 1) {
-        return imlib_draw_rotated_thin_ellipse_aa(img, cx, cy, rx, ry, r, c);
+    // Plot ellipse rotated by angle (degree).
+    float xd = rx * rx;
+    float yd = ry * ry;
+
+    // Ellipse rotation.
+    float s = sin_table[r];
+    float zd = (xd - yd) * s;
+
+    // Surrounding rect.
+    xd = fast_sqrtf(xd - (zd * s));
+    yd = fast_sqrtf(yd + (zd * s));
+    rx = fast_roundf(xd);
+    ry = fast_roundf(yd);
+    zd = (zd * rx * ry) / (xd * yd);
+
+    int x0 = cx - rx;
+    int y0 = cy - ry;
+    int x1 = cx + rx;
+    int y1 = cy + ry;
+
+    zd = 4.0f * zd * cos_table[r];
+
+    // Rectangle enclosing the ellipse, integer rotation angle.
+    xd = x1 - x0;
+    yd = y1 - y0;
+    float w = xd * yd;
+
+    // Squared weight of p1.
+    if (w != 0.0f) {
+        w = (w - zd) / (w + w);
+    }
+
+    // Limit angle to |zd|<=xd*yd.
+    if (!((w <= 1.0f) && (w >= 0.0f))) {
+        return;
+    }
+
+    // Snap to int.
+    xd = fast_roundf(xd * w);
+    yd = fast_roundf(yd * w);
+
+    if (th == 1) {
+        plot_quad_rational_bezier_seg_aa(img, x0, y0 + yd, x0, y0, x0 + xd, y0, 1.0f - w, c);
+        plot_quad_rational_bezier_seg_aa(img, x0, y0 + yd, x0, y1, x1 - xd, y1, w, c);
+        plot_quad_rational_bezier_seg_aa(img, x1, y1 - yd, x1, y1, x1 - xd, y1, 1.0f - w, c);
+        plot_quad_rational_bezier_seg_aa(img, x1, y1 - yd, x1, y0, x0 + xd, y0, w, c);
     } else {
-        return imlib_draw_rotated_width_ellipse_aa(img, cx, cy, rx, ry, r, c, thickness);
+        plot_quad_rational_bezier_width_seg(img, x0, y0 + yd, x0, y0, x0 + xd, y0, 1.0f - w, c, th);
+        plot_quad_rational_bezier_width_seg(img, x0, y0 + yd, x0, y1, x1 - xd, y1, w, c, th);
+        plot_quad_rational_bezier_width_seg(img, x1, y1 - yd, x1, y1, x1 - xd, y1, 1.0f - w, c, th);
+        plot_quad_rational_bezier_width_seg(img, x1, y1 - yd, x1, y0, x0 + xd, y0, w, c, th);
     }
 }
 

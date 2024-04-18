@@ -34,6 +34,10 @@
 #include "omv_boardconfig.h"
 #include "omv_gpio.h"
 #include "omv_i2c.h"
+#include "omv_log.h"
+#include "ap0202at.h"
+#include "ap0202at_generic.h"
+#include "ap0202at_ar0147.h"
 
 #ifndef OMV_ISC_MAX_DEVICES
 #define OMV_ISC_MAX_DEVICES (5)
@@ -173,6 +177,7 @@ __weak int sensor_reset() {
 }
 
 static int sensor_detect() {
+    LOG_TRACE("%s()\n", __func__);
     uint8_t devs_list[OMV_ISC_MAX_DEVICES];
     int n_devs = omv_i2c_scan(&sensor.i2c_bus, devs_list, OMV_ARRAY_SIZE(devs_list));
 
@@ -232,6 +237,67 @@ static int sensor_detect() {
                 sensor.chip_id_w = FROGEYE2020_ID;
                 return slv_addr;
             #endif // (OMV_FROGEYE2020_ENABLE == 1)
+
+            #if (OMV_AP0202AT_AR0147_ENABLE == 1) || \
+                (OMV_AP0202AT_AR0231_ENABLE == 1)
+            case AP0202AT_SLV_ADDR: {
+                LOG_DEBUG("Matched ap0202at i2c address\n");
+
+                bool isp_detected = false;
+                bool sensor_detected = false;
+
+                // detect isp
+                LOG_DEBUG("Detecting ap0202at isp\n");
+                sensor.slv_addr = slv_addr;
+                int ret = ap0202at_detect_self(&sensor, &isp_detected);
+                sensor.slv_addr = 0;
+                if (0 != ret) {
+                    LOG_ERROR("ap0202at detect self failed.\n");
+                    return 0;
+                }
+                if (!isp_detected) {
+                    LOG_ERROR("ap0202at isp not detected.\n");
+                    return 0;
+                }
+                LOG_INFO("detected ap0202at isp\n");
+
+                // subselect the attached sensor
+                LOG_DEBUG("Now subselecting attached sensor.\n");
+                #if (OMV_AP0202AT_AR0147_ENABLE == 1)
+                    sensor.slv_addr = slv_addr;
+                    ret = ap0202at_detect_sensor_ar0147(&sensor, &sensor_detected);
+                    sensor.slv_addr = 0;
+                    if (0 != ret) {
+                        LOG_ERROR("ap0202at detect sensor ar0147 failed.\n");
+                        return 0;
+                    }
+                    if (sensor_detected) {
+                        LOG_INFO("detected ar0147 sensor\n");
+                        return slv_addr;
+                    }
+                    LOG_INFO("ap0202at sensor ar0147 not detected.\n");
+                #endif // (OMV_AP0202AT_AR0147_ENABLE == 1)
+
+                #if (OMV_AP0202AT_AR0231_ENABLE == 1)
+                    sensor.slv_addr = slv_addr;
+                    ret = ap0202at_detect_sensor_ar0231at(&sensor, &sensor_detected);
+                    sensor.slv_addr = 0;
+                    if (0 != ret) {
+                        LOG_ERROR("ap0202at detect sensor ar0231at failed.\n");
+                        return 0;
+                    }
+                    if (sensor_detected) {
+                        LOG_INFO("detected ar0231at sensor\n");
+                        return slv_addr;
+                    }
+                    LOG_INFO("ap0202at sensor ar0231at not detected.\n");
+                #endif // (OMV_AP0202AT_AR0231_ENABLE == 1)
+            }
+            #endif // (OMV_EMABlE_AP0202AT == 1)
+
+            default:
+                LOG_WARNING("unknown sensor detected at 0x%0x.\n", slv_addr);
+                break;
         }
     }
 
@@ -239,6 +305,8 @@ static int sensor_detect() {
 }
 
 int sensor_probe_init(uint32_t bus_id, uint32_t bus_speed) {
+    LOG_TRACE("%s(bus_id: %ld, bus_speed: %ld)\n", __func__, bus_id, bus_speed);
+
     int init_ret = 0;
 
     #if defined(OMV_CSI_POWER_PIN)
@@ -443,6 +511,24 @@ int sensor_probe_init(uint32_t bus_id, uint32_t bus_speed) {
             init_ret = frogeye2020_init(&sensor);
             break;
         #endif // (OMV_FROGEYE2020_ENABLE == 1)
+
+        #if (OMV_EMABlE_AP0202AT_AR0147 == 1)
+        case AP0202AT_AR0147_ID:
+            if (sensor_set_xclk_frequency(AP0202AT_XCLK_FREQ) != 0) {
+                return SENSOR_ERROR_TIM_INIT_FAILED;
+            }
+            init_ret = ap0202at_ar0147_init(&sensor);
+            break;
+        #endif // (OMV_EMABlE_AP0202AT_AR0147 == 1)
+
+        #if (OMV_EMABlE_AP0202AT_AR0231 == 1)
+        case AP0202AT_AR0231_ID:
+            if (sensor_set_xclk_frequency(AP0202AT_XCLK_FREQ) != 0) {
+                return SENSOR_ERROR_TIM_INIT_FAILED;
+            }
+            init_ret = ap0202at_ar0231_init(&sensor);
+            break;
+        #endif // (OMV_EMABlE_AP0202AT_AR0231 == 1)
 
         default:
             return SENSOR_ERROR_ISC_UNSUPPORTED;

@@ -45,6 +45,10 @@
 #define OMV_PAJ6100_ENABLE              (1)
 #define OMV_FROGEYE2020_ENABLE          (1)
 
+#define OMV_AP0202AT_ENABLE             (1)
+#define OMV_AP0202AT_AR0147_ENABLE      (1)
+#define OMV_AP0202AT_AR0231_ENABLE      (1)
+
 // FIR sensor drivers configuration.
 #define OMV_FIR_MLX90621_ENABLE         (1)
 #define OMV_FIR_MLX90640_ENABLE         (1)

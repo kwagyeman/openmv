@@ -45,6 +45,10 @@ SRCS += $(addprefix sensors/,   \
 	gc2145.c                    \
 	paj6100.c                   \
 	frogeye2020.c               \
+	ap0202at.c                  \
+	ap0202at_generic.c          \
+	ap0202at_ar0147.c           \
+	ap0202at_ar0231at.c         \
    )
 
 SRCS += $(addprefix imlib/,     \

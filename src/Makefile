@@ -83,6 +83,11 @@ CFLAGS += -O2 -DNDEBUG
 MPY_CFLAGS += -DMICROPY_ROM_TEXT_COMPRESSION=1
 endif
 
+# Enable logging
+ifdef LOG_LEVEL
+CFLAGS += -DOMV_LOG_LEVEL=$(LOG_LEVEL)
+endif
+
 # Enable debug printf
 ifeq ($(DEBUG_PRINTF), 1)
 CFLAGS += -DOMV_DEBUG_PRINTF

@@ -173,6 +173,10 @@ FIRM_OBJ += $(addprefix $(BUILD)/$(OMV_DIR)/sensors/,   \
 	gc2145.o                    \
 	paj6100.o                   \
 	frogeye2020.o               \
+	ap0202at.o                  \
+	ap0202at_generic.o          \
+	ap0202at_ar0147.o           \
+	ap0202at_ar0231at.o         \
    )
 
 FIRM_OBJ += $(addprefix $(BUILD)/$(OMV_DIR)/imlib/, \
@@ -568,6 +572,10 @@ UVC_OBJ += $(addprefix $(BUILD)/$(OMV_DIR)/sensors/, \
 	gc2145.o                                \
 	paj6100.o                               \
 	frogeye2020.o                           \
+	ap0202at.o                              \
+	ap0202at_generic.o                      \
+	ap0202at_ar0147.o                       \
+	ap0202at_ar0231at.o                     \
 	)
 
 UVC_OBJ += $(addprefix $(BUILD)/$(OMV_DIR)/imlib/,\

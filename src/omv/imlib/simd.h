@@ -619,6 +619,23 @@ static inline v128_t vusat_s16_narrow_u8_combine(v128_t v0, v128_t v1) {
 #endif
 
 #if (__ARM_ARCH >= 8)
+#define vshr8_u16_narrow_u8_combine(v0, v1) \
+    ((v128_t) vshrntq_n_u16(vshrnbq_n_u16(vuninitializedq_u8(), v0.u16, 8), v1.u16, 8))
+#else
+static inline v128_t vshr8_u16_narrow_u8_combine(v128_t v0, v128_t v1) {
+    #if (__ARM_ARCH >= 7)
+    return (v128_t) {
+        .u32 = { __UXTB16_RORn(v0.u32[0], 8) | (__UXTB16_RORn(v1.u32[0], 8) << 8) }
+    };
+    #else
+    return (v128_t) {
+        .u32 = { ((v0.u32[0] >> 8) & 0x00FF00FF) | (((v1.u32[0] >> 8) & 0x00FF00FF) << 8) }
+    };
+    #endif
+}
+#endif
+
+#if (__ARM_ARCH >= 8)
 #define vmov_u16_narrow_u8_combine(v0, v1, mask) ((v128_t) vmovntq(v0.u8, v1.u16))
 #else
 static inline v128_t vmov_u16_narrow_u8_combine(v128_t v0, v128_t v1, bool mask) {

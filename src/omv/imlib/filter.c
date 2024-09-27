@@ -962,123 +962,159 @@ void imlib_mode_filter(image_t *img, const int ksize, bool threshold, int offset
 
 #ifdef IMLIB_ENABLE_MIDPOINT
 void imlib_midpoint_filter(image_t *img, const int ksize, float bias, bool threshold, int offset, bool invert, image_t *mask) {
-    int brows = ksize + 1;
+    int32_t brows = ksize + 1;
     image_t buf;
     buf.w = img->w;
     buf.h = brows;
     buf.pixfmt = img->pixfmt;
-    uint8_t *u8BiasTable;
-    float max_bias = bias, min_bias = 1.0f - bias;
-
-    u8BiasTable = fb_alloc(256, FB_ALLOC_NO_HINT);
-    for (int i = 0; i < 256; i++) {
-        u8BiasTable[i] = (uint8_t) fast_floorf((float) i * bias);
-    }
+    int32_t min_bias = fast_floorf((1.0f - bias) * 256.0f);
+    int32_t max_bias = fast_floorf(bias * 256.0f);
+    v128_t voffset8 = vdup_s8(offset);
+    v128_t voffset16 = vdup_s16(offset);
+    v128_t vinvert_ge = vdup_u32(invert ? 0xFFFFFFFF : 0x00000000);
+    v128_t vinvert_lt = vdup_u32(invert ? 0x00000000 : 0xFFFFFFFF);
 
     switch (img->pixfmt) {
         case PIXFORMAT_BINARY: {
-            buf.data = fb_alloc(IMAGE_BINARY_LINE_LEN_BYTES(img) * brows, FB_ALLOC_NO_HINT);
+            buf.data = fb_alloc(IMAGE_BINARY_LINE_LEN_BYTES(img) * brows, FB_ALLOC_PREFER_SPEED);
 
-            for (int y = 0, yy = img->h; y < yy; y++) {
+            for (int32_t y = 0; y < img->h; y++) {
                 uint32_t *row_ptr = IMAGE_COMPUTE_BINARY_PIXEL_ROW_PTR(img, y);
                 uint32_t *buf_row_ptr = IMAGE_COMPUTE_BINARY_PIXEL_ROW_PTR(&buf, (y % brows));
 
-                for (int x = 0, xx = img->w; x < xx; x++) {
+                for (int32_t x = 0; x < img->w; x++) {
                     if (mask && (!image_get_mask_pixel(mask, x, y))) {
-                        IMAGE_PUT_BINARY_PIXEL_FAST(buf_row_ptr, x, IMAGE_GET_BINARY_PIXEL_FAST(row_ptr, x));
+                        int32_t p = IMAGE_GET_BINARY_PIXEL_FAST(row_ptr, x);
+                        IMAGE_PUT_BINARY_PIXEL_FAST(buf_row_ptr, x, p);
                         continue; // Short circuit.
                     }
 
-                    int min = COLOR_BINARY_MAX, max = COLOR_BINARY_MIN;
+                    int32_t min = COLOR_BINARY_MAX;
+                    int32_t max = COLOR_BINARY_MIN;
 
                     if (x >= ksize && x < img->w - ksize && y >= ksize && y < img->h - ksize) {
-                        for (int j = -ksize; j <= ksize; j++) {
+                        for (int32_t j = -ksize; j <= ksize; j++) {
                             uint32_t *k_row_ptr = IMAGE_COMPUTE_BINARY_PIXEL_ROW_PTR(img, y + j);
-                            for (int k = -ksize; k <= ksize; k++) {
-                                int pixel = IMAGE_GET_BINARY_PIXEL_FAST(k_row_ptr, x + k);
+                            for (int32_t k = -ksize; k <= ksize; k++) {
+                                int32_t pixel = IMAGE_GET_BINARY_PIXEL_FAST(k_row_ptr, x + k);
                                 min &= pixel;
                                 max |= pixel;
                             }
                         }
                     } else {
-                        for (int j = -ksize; j <= ksize; j++) {
-                            int y_j = IM_CLAMP(y + j, 0, (img->h - 1));
+                        for (int32_t j = -ksize; j <= ksize; j++) {
+                            int32_t y_j = IM_CLAMP(y + j, 0, (img->h - 1));
                             uint32_t *k_row_ptr = IMAGE_COMPUTE_BINARY_PIXEL_ROW_PTR(img, y_j);
 
-                            for (int k = -ksize; k <= ksize; k++) {
-                                int x_k = IM_CLAMP(x + k, 0, (img->w - 1));
-                                int pixel = IMAGE_GET_BINARY_PIXEL_FAST(k_row_ptr, x_k);
+                            for (int32_t k = -ksize; k <= ksize; k++) {
+                                int32_t x_k = IM_CLAMP(x + k, 0, (img->w - 1));
+                                int32_t pixel = IMAGE_GET_BINARY_PIXEL_FAST(k_row_ptr, x_k);
                                 min &= pixel;
                                 max |= pixel;
                             }
                         }
                     }
 
-                    int pixel = fast_floorf((min * min_bias) + (max * max_bias));
+                    int32_t pixel = ((min * min_bias) + (max * max_bias)) >> 8;
 
                     if (threshold) {
-                        if (((pixel - offset) < IMAGE_GET_BINARY_PIXEL_FAST(row_ptr, x)) ^ invert) {
-                            pixel = COLOR_BINARY_MAX;
-                        } else {
-                            pixel = COLOR_BINARY_MIN;
-                        }
+                        pixel -= offset;
+                        pixel = pixel < IMAGE_GET_BINARY_PIXEL_FAST(row_ptr, x);
+                        pixel = pixel ^ invert;
                     }
 
                     IMAGE_PUT_BINARY_PIXEL_FAST(buf_row_ptr, x, pixel);
                 }
 
-                if (y >= ksize) {
-                    // Transfer buffer lines...
-                    memcpy(IMAGE_COMPUTE_BINARY_PIXEL_ROW_PTR(img, (y - ksize)),
-                           IMAGE_COMPUTE_BINARY_PIXEL_ROW_PTR(&buf, ((y - ksize) % brows)),
-                           IMAGE_BINARY_LINE_LEN_BYTES(img));
-                }
+                linebuf_copy(PIXFORMAT_BINARY, y, ksize, brows, &buf, img);
             }
 
-            // Copy any remaining lines from the buffer image...
-            for (int y = IM_MAX(img->h - ksize, 0), yy = img->h; y < yy; y++) {
-                memcpy(IMAGE_COMPUTE_BINARY_PIXEL_ROW_PTR(img, y),
-                       IMAGE_COMPUTE_BINARY_PIXEL_ROW_PTR(&buf, (y % brows)),
-                       IMAGE_BINARY_LINE_LEN_BYTES(img));
-            }
-
+            linebuf_copy_tail(PIXFORMAT_BINARY, ksize, brows, &buf, img);
             fb_free();
             break;
         }
         case PIXFORMAT_GRAYSCALE: {
-            buf.data = fb_alloc(IMAGE_GRAYSCALE_LINE_LEN_BYTES(img) * brows, FB_ALLOC_NO_HINT);
+            buf.data = fb_alloc(IMAGE_GRAYSCALE_LINE_LEN_BYTES(img) * brows, FB_ALLOC_PREFER_SPEED);
 
-            for (int y = 0, yy = img->h; y < yy; y++) {
+            for (int32_t y = 0; y < img->h; y++) {
                 uint8_t *row_ptr = IMAGE_COMPUTE_GRAYSCALE_PIXEL_ROW_PTR(img, y);
                 uint8_t *buf_row_ptr = IMAGE_COMPUTE_GRAYSCALE_PIXEL_ROW_PTR(&buf, (y % brows));
 
-                for (int x = 0, xx = img->w; x < xx; x++) {
+                for (int32_t x = 0; x < img->w; x++) {
                     if (mask && (!image_get_mask_pixel(mask, x, y))) {
-                        IMAGE_PUT_GRAYSCALE_PIXEL_FAST(buf_row_ptr, x, IMAGE_GET_GRAYSCALE_PIXEL_FAST(row_ptr, x));
+                        int32_t p = IMAGE_GET_GRAYSCALE_PIXEL_FAST(row_ptr, x);
+                        IMAGE_PUT_GRAYSCALE_PIXEL_FAST(buf_row_ptr, x, p);
                         continue; // Short circuit.
                     }
 
-                    int min = COLOR_GRAYSCALE_MAX, max = COLOR_GRAYSCALE_MIN;
+                    int32_t min = COLOR_GRAYSCALE_MAX;
+                    int32_t max = COLOR_GRAYSCALE_MIN;
+
                     if (x >= ksize && x < img->w - ksize && y >= ksize && y < img->h - ksize) {
-                        for (int j = -ksize; j <= ksize; j++) {
-                            uint8_t *k_row_ptr = IMAGE_COMPUTE_GRAYSCALE_PIXEL_ROW_PTR(img, y + j);
-                            for (int k = -ksize; k <= ksize; k++) {
-                                int pixel = IMAGE_GET_GRAYSCALE_PIXEL_FAST(k_row_ptr, x + k);
-                                if (pixel < min) {
-                                    min = pixel;
-                                } else if (pixel > max) {
-                                    max = pixel;
+                        int32_t remaining = (img->w - ksize) - x;
+                        if (remaining >= vpredicate_8_maybe_min_elements()) {
+                            for (;;) {
+                                v128_predicate_t pred = vpredicate_8_maybe(remaining);
+                                v128_t vmin = vdup_u8(COLOR_GRAYSCALE_MAX);
+                                v128_t vmax = vdup_u8(COLOR_GRAYSCALE_MIN);
+
+                                for (int32_t j = -ksize; j <= ksize; j++) {
+                                    uint8_t *k_row_ptr = IMAGE_COMPUTE_GRAYSCALE_PIXEL_ROW_PTR(img, y + j) + x;
+                                    for (int32_t k = -ksize; k <= ksize; k++) {
+                                        v128_t pixels = vldr_u8_pred(k_row_ptr + k, pred);
+                                        vmin = vmin_u8(vmin, pixels);
+                                        vmax = vmax_u8(vmax, pixels);
+                                    }
+                                }
+
+                                v128_t vmin0 = vmul_n_s16(vuxtb16(vmin), min_bias);
+                                v128_t vminmax0 = vmla_n_s16(vuxtb16(vmax), max_bias, vmin0);
+                                v128_t vmin1 = vmul_n_s16(vuxtb16_ror8(vmin), min_bias);
+                                v128_t vminmax1 = vmla_n_s16(vuxtb16_ror8(vmax), max_bias, vmin1);
+                                v128_t pixels = vshr8_u16_narrow_u8_combine(vminmax0, vminmax1);
+
+                                if (threshold) {
+                                    pixels = vsub_s8(pixels, voffset8);
+                                    v128_t old_pixels = vldr_u8_pred(row_ptr + x, pred);
+                                    pixels = vcmpgesel_u8(pixels, old_pixels, vinvert_ge, vinvert_lt);
+                                }
+
+                                vstr_u8_pred(buf_row_ptr + x, pixels, pred);
+                                uint32_t inc = vpredicate_8_get_n(pred);
+                                remaining -= inc;
+
+                                if (remaining < vpredicate_8_maybe_min_elements()) {
+                                    x += inc - 1;
+                                    break;
+                                }
+
+                                x += inc;
+                            }
+
+                            continue;
+                        } else {
+                            for (int32_t j = -ksize; j <= ksize; j++) {
+                                uint8_t *k_row_ptr = IMAGE_COMPUTE_GRAYSCALE_PIXEL_ROW_PTR(img, y + j);
+                                for (int32_t k = -ksize; k <= ksize; k++) {
+                                    int32_t pixel = IMAGE_GET_GRAYSCALE_PIXEL_FAST(k_row_ptr, x + k);
+
+                                    if (pixel < min) {
+                                        min = pixel;
+                                    } else if (pixel > max) {
+                                        max = pixel;
+                                    }
                                 }
                             }
                         }
                     } else {
-                        for (int j = -ksize; j <= ksize; j++) {
-                            int y_j = IM_CLAMP(y + j, 0, (img->h - 1));
+                        for (int32_t j = -ksize; j <= ksize; j++) {
+                            int32_t y_j = IM_CLAMP(y + j, 0, (img->h - 1));
                             uint8_t *k_row_ptr = IMAGE_COMPUTE_GRAYSCALE_PIXEL_ROW_PTR(img, y_j);
 
-                            for (int k = -ksize; k <= ksize; k++) {
-                                int x_k = IM_CLAMP(x + k, 0, (img->w - 1));
-                                int pixel = IMAGE_GET_GRAYSCALE_PIXEL_FAST(k_row_ptr, x_k);
+                            for (int32_t k = -ksize; k <= ksize; k++) {
+                                int32_t x_k = IM_CLAMP(x + k, 0, (img->w - 1));
+                                int32_t pixel = IMAGE_GET_GRAYSCALE_PIXEL_FAST(k_row_ptr, x_k);
+
                                 if (pixel < min) {
                                     min = pixel;
                                 } else if (pixel > max) {
@@ -1088,99 +1124,152 @@ void imlib_midpoint_filter(image_t *img, const int ksize, float bias, bool thres
                         }
                     }
 
-                    int pixel = min + u8BiasTable[max - min];
+                    int32_t pixel = ((min * min_bias) + (max * max_bias)) >> 8;
 
                     if (threshold) {
-                        if (((pixel - offset) < IMAGE_GET_GRAYSCALE_PIXEL_FAST(row_ptr, x)) ^ invert) {
-                            pixel = COLOR_GRAYSCALE_BINARY_MAX;
-                        } else {
-                            pixel = COLOR_GRAYSCALE_BINARY_MIN;
-                        }
+                        pixel -= offset;
+                        pixel = pixel < IMAGE_GET_GRAYSCALE_PIXEL_FAST(row_ptr, x);
+                        pixel = (pixel ^ invert) * COLOR_GRAYSCALE_BINARY_MAX;
                     }
 
                     IMAGE_PUT_GRAYSCALE_PIXEL_FAST(buf_row_ptr, x, pixel);
                 }
 
-                if (y >= ksize) {
-                    // Transfer buffer lines...
-                    memcpy(IMAGE_COMPUTE_GRAYSCALE_PIXEL_ROW_PTR(img, (y - ksize)),
-                           IMAGE_COMPUTE_GRAYSCALE_PIXEL_ROW_PTR(&buf, ((y - ksize) % brows)),
-                           IMAGE_GRAYSCALE_LINE_LEN_BYTES(img));
-                }
+                linebuf_copy(PIXFORMAT_GRAYSCALE, y, ksize, brows, &buf, img);
             }
 
-            // Copy any remaining lines from the buffer image...
-            for (int y = IM_MAX(img->h - ksize, 0), yy = img->h; y < yy; y++) {
-                memcpy(IMAGE_COMPUTE_GRAYSCALE_PIXEL_ROW_PTR(img, y),
-                       IMAGE_COMPUTE_GRAYSCALE_PIXEL_ROW_PTR(&buf, (y % brows)),
-                       IMAGE_GRAYSCALE_LINE_LEN_BYTES(img));
-            }
-
+            linebuf_copy_tail(PIXFORMAT_GRAYSCALE, ksize, brows, &buf, img);
             fb_free();
             break;
         }
         case PIXFORMAT_RGB565: {
-            buf.data = fb_alloc(IMAGE_RGB565_LINE_LEN_BYTES(img) * brows, FB_ALLOC_NO_HINT);
+            buf.data = fb_alloc(IMAGE_RGB565_LINE_LEN_BYTES(img) * brows, FB_ALLOC_PREFER_SPEED);
 
-            for (int y = 0, yy = img->h; y < yy; y++) {
+            for (int32_t y = 0; y < img->h; y++) {
                 uint16_t *row_ptr = IMAGE_COMPUTE_RGB565_PIXEL_ROW_PTR(img, y);
                 uint16_t *buf_row_ptr = IMAGE_COMPUTE_RGB565_PIXEL_ROW_PTR(&buf, (y % brows));
 
-                for (int x = 0, xx = img->w; x < xx; x++) {
+                for (int32_t x = 0; x < img->w; x++) {
                     if (mask && (!image_get_mask_pixel(mask, x, y))) {
-                        IMAGE_PUT_RGB565_PIXEL_FAST(buf_row_ptr, x, IMAGE_GET_RGB565_PIXEL_FAST(row_ptr, x));
+                        int32_t p = IMAGE_GET_RGB565_PIXEL_FAST(row_ptr, x);
+                        IMAGE_PUT_RGB565_PIXEL_FAST(buf_row_ptr, x, p);
                         continue; // Short circuit.
                     }
 
-                    int r_min = COLOR_R5_MAX, r_max = COLOR_R5_MIN;
-                    int g_min = COLOR_G6_MAX, g_max = COLOR_G6_MIN;
-                    int b_min = COLOR_B5_MAX, b_max = COLOR_B5_MIN;
+                    int32_t r_min = COLOR_R5_MAX;
+                    int32_t r_max = COLOR_R5_MIN;
+                    int32_t g_min = COLOR_G6_MAX;
+                    int32_t g_max = COLOR_G6_MIN;
+                    int32_t b_min = COLOR_B5_MAX;
+                    int32_t b_max = COLOR_B5_MIN;
+
                     if (x >= ksize && x < img->w - ksize && y >= ksize && y < img->h - ksize) {
-                        for (int j = -ksize; j <= ksize; j++) {
-                            uint16_t *k_row_ptr = IMAGE_COMPUTE_RGB565_PIXEL_ROW_PTR(img, y + j);
-                            for (int k = -ksize; k <= ksize; k++) {
-                                int pixel = IMAGE_GET_RGB565_PIXEL_FAST(k_row_ptr, x + k);
-                                int r_pixel = COLOR_RGB565_TO_R5(pixel);
-                                int g_pixel = COLOR_RGB565_TO_G6(pixel);
-                                int b_pixel = COLOR_RGB565_TO_B5(pixel);
-                                if (r_pixel < r_min) {
-                                    r_min = r_pixel;
-                                } else if (r_pixel > r_max) {
-                                    r_max = r_pixel;
+                        int32_t remaining = (img->w - ksize) - x;
+                        if (remaining >= vpredicate_16_maybe_min_elements()) {
+                            for (;;) {
+                                v128_predicate_t pred = vpredicate_16_maybe(remaining);
+                                v128_t vr_min = vdup_u16(COLOR_R5_MAX);
+                                v128_t vr_max = vdup_u16(COLOR_R5_MIN);
+                                v128_t vg_min = vdup_u16(COLOR_G6_MAX);
+                                v128_t vg_max = vdup_u16(COLOR_G6_MIN);
+                                v128_t vb_min = vdup_u16(COLOR_B5_MAX);
+                                v128_t vb_max = vdup_u16(COLOR_B5_MIN);
+
+                                for (int32_t j = -ksize; j <= ksize; j++) {
+                                    uint16_t *k_row_ptr = IMAGE_COMPUTE_RGB565_PIXEL_ROW_PTR(img, y + j) + x;
+                                    for (int32_t k = -ksize; k <= ksize; k++) {
+                                        v128_t pixels = vldr_u16_pred(k_row_ptr + k, pred);
+                                        vrgb_pixels_t pixels_rgb = vrgb_rgb565_to_pixels565(pixels);
+                                        vr_min = vmin_u16(vr_min, pixels_rgb.r);
+                                        vr_max = vmax_u16(vr_max, pixels_rgb.r);
+                                        vg_min = vmin_u16(vg_min, pixels_rgb.g);
+                                        vg_max = vmax_u16(vg_max, pixels_rgb.g);
+                                        vb_min = vmin_u16(vb_min, pixels_rgb.b);
+                                        vb_max = vmax_u16(vb_max, pixels_rgb.b);
+                                    }
                                 }
-                                if (g_pixel < g_min) {
-                                    g_min = g_pixel;
-                                } else if (g_pixel > g_max) {
-                                    g_max = g_pixel;
+
+                                vrgb_pixels_t pixels565;
+                                pixels565.r = vuxtb16_ror8(vmla_n_s16(vr_max, max_bias, vmul_n_s16(vr_min, min_bias)));
+                                pixels565.g = vuxtb16_ror8(vmla_n_s16(vg_max, max_bias, vmul_n_s16(vg_min, min_bias)));
+                                pixels565.b = vuxtb16_ror8(vmla_n_s16(vb_max, max_bias, vmul_n_s16(vb_min, min_bias)));
+                                v128_t pixels = vrgb_pixels565_to_rgb565(pixels565);
+
+                                if (threshold) {
+                                    v128_t pixels_y = vuxtb16(vrgb_pixels565_to_grayscale(pixels565));
+                                    pixels_y = vsub_s16(pixels_y, voffset16);
+                                    v128_t old_pixels = vldr_u16_pred(row_ptr + x, pred);
+                                    vrgb_pixels_t old_pixels565 = vrgb_rgb565_to_pixels565(old_pixels);
+                                    v128_t old_pixels_y = vuxtb16(vrgb_pixels565_to_grayscale(old_pixels565));
+                                    pixels = vcmpgesel_u16(pixels_y, old_pixels_y, vinvert_ge, vinvert_lt);
                                 }
-                                if (b_pixel < b_min) {
-                                    b_min = b_pixel;
-                                } else if (b_pixel > b_max) {
-                                    b_max = b_pixel;
+
+                                vstr_u16_pred(buf_row_ptr + x, pixels, pred);
+                                uint32_t inc = vpredicate_16_get_n(pred);
+                                remaining -= inc;
+
+                                if (remaining < vpredicate_16_maybe_min_elements()) {
+                                    x += inc - 1;
+                                    break;
+                                }
+
+                                x += inc;
+                            }
+
+                            continue;
+                        } else {
+                            for (int32_t j = -ksize; j <= ksize; j++) {
+                                uint16_t *k_row_ptr = IMAGE_COMPUTE_RGB565_PIXEL_ROW_PTR(img, y + j);
+                                for (int32_t k = -ksize; k <= ksize; k++) {
+                                    int32_t pixel = IMAGE_GET_RGB565_PIXEL_FAST(k_row_ptr, x + k);
+                                    int32_t r_pixel = COLOR_RGB565_TO_R5(pixel);
+                                    int32_t g_pixel = COLOR_RGB565_TO_G6(pixel);
+                                    int32_t b_pixel = COLOR_RGB565_TO_B5(pixel);
+
+                                    if (r_pixel < r_min) {
+                                        r_min = r_pixel;
+                                    } else if (r_pixel > r_max) {
+                                        r_max = r_pixel;
+                                    }
+
+                                    if (g_pixel < g_min) {
+                                        g_min = g_pixel;
+                                    } else if (g_pixel > g_max) {
+                                        g_max = g_pixel;
+                                    }
+
+                                    if (b_pixel < b_min) {
+                                        b_min = b_pixel;
+                                    } else if (b_pixel > b_max) {
+                                        b_max = b_pixel;
+                                    }
                                 }
                             }
                         }
                     } else {
-                        for (int j = -ksize; j <= ksize; j++) {
-                            int y_j = IM_CLAMP(y + j, 0, (img->h - 1));
+                        for (int32_t j = -ksize; j <= ksize; j++) {
+                            int32_t y_j = IM_CLAMP(y + j, 0, (img->h - 1));
                             uint16_t *k_row_ptr = IMAGE_COMPUTE_RGB565_PIXEL_ROW_PTR(img, y_j);
 
-                            for (int k = -ksize; k <= ksize; k++) {
-                                int x_k = IM_CLAMP(x + k, 0, (img->w - 1));
-                                int pixel = IMAGE_GET_RGB565_PIXEL_FAST(k_row_ptr, x_k);
-                                int r_pixel = COLOR_RGB565_TO_R5(pixel);
-                                int g_pixel = COLOR_RGB565_TO_G6(pixel);
-                                int b_pixel = COLOR_RGB565_TO_B5(pixel);
+                            for (int32_t k = -ksize; k <= ksize; k++) {
+                                int32_t x_k = IM_CLAMP(x + k, 0, (img->w - 1));
+                                int32_t pixel = IMAGE_GET_RGB565_PIXEL_FAST(k_row_ptr, x_k);
+                                int32_t r_pixel = COLOR_RGB565_TO_R5(pixel);
+                                int32_t g_pixel = COLOR_RGB565_TO_G6(pixel);
+                                int32_t b_pixel = COLOR_RGB565_TO_B5(pixel);
+
                                 if (r_pixel < r_min) {
                                     r_min = r_pixel;
                                 } else if (r_pixel > r_max) {
                                     r_max = r_pixel;
                                 }
+
                                 if (g_pixel < g_min) {
                                     g_min = g_pixel;
                                 } else if (g_pixel > g_max) {
                                     g_max = g_pixel;
                                 }
+
                                 if (b_pixel < b_min) {
                                     b_min = b_pixel;
                                 } else if (b_pixel > b_max) {
@@ -1190,46 +1279,31 @@ void imlib_midpoint_filter(image_t *img, const int ksize, float bias, bool thres
                         }
                     }
 
-                    r_min += u8BiasTable[r_max - r_min];
-                    g_min += u8BiasTable[g_max - g_min];
-                    b_min += u8BiasTable[b_max - b_min];
-                    int pixel = COLOR_R5_G6_B5_TO_RGB565(r_min, g_min, b_min);
+                    int32_t r_pixel = ((r_min * min_bias) + (r_max * max_bias)) >> 8;
+                    int32_t g_pixel = ((g_min * min_bias) + (g_max * max_bias)) >> 8;
+                    int32_t b_pixel = ((b_min * min_bias) + (b_max * max_bias)) >> 8;
+                    int32_t pixel = COLOR_R5_G6_B5_TO_RGB565(r_pixel, g_pixel, b_pixel);
 
                     if (threshold) {
-                        if (((COLOR_RGB565_TO_Y(pixel) - offset) <
-                             COLOR_RGB565_TO_Y(IMAGE_GET_RGB565_PIXEL_FAST(row_ptr, x))) ^ invert) {
-                            pixel = COLOR_RGB565_BINARY_MAX;
-                        } else {
-                            pixel = COLOR_RGB565_BINARY_MIN;
-                        }
+                        pixel = COLOR_RGB565_TO_Y(pixel) - offset;
+                        pixel = pixel < COLOR_RGB565_TO_Y(IMAGE_GET_RGB565_PIXEL_FAST(row_ptr, x));
+                        pixel = (pixel ^ invert) * COLOR_RGB565_BINARY_MAX;
                     }
 
                     IMAGE_PUT_RGB565_PIXEL_FAST(buf_row_ptr, x, pixel);
                 }
 
-                if (y >= ksize) {
-                    // Transfer buffer lines...
-                    memcpy(IMAGE_COMPUTE_RGB565_PIXEL_ROW_PTR(img, (y - ksize)),
-                           IMAGE_COMPUTE_RGB565_PIXEL_ROW_PTR(&buf, ((y - ksize) % brows)),
-                           IMAGE_RGB565_LINE_LEN_BYTES(img));
-                }
+                linebuf_copy(PIXFORMAT_RGB565, y, ksize, brows, &buf, img);
             }
 
-            // Copy any remaining lines from the buffer image...
-            for (int y = IM_MAX(img->h - ksize, 0), yy = img->h; y < yy; y++) {
-                memcpy(IMAGE_COMPUTE_RGB565_PIXEL_ROW_PTR(img, y),
-                       IMAGE_COMPUTE_RGB565_PIXEL_ROW_PTR(&buf, (y % brows)),
-                       IMAGE_RGB565_LINE_LEN_BYTES(img));
-            }
-
+            linebuf_copy_tail(PIXFORMAT_RGB565, ksize, brows, &buf, img);
             fb_free();
             break;
         }
         default: {
-            break;
+            __builtin_unreachable();
         }
     }
-    fb_free();
 }
 #endif // IMLIB_ENABLE_MIDPOINT
 

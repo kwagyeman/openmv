@@ -26,7 +26,7 @@
 # OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-from ml.utils import NMS
+import ml.utils
 from micropython import const
 from ulab import numpy as np
 
@@ -94,12 +94,14 @@ def dequantize(model, value):
 
 class fomo_postprocess:
     def __init__(self, threshold=0.4, w_scale=1.414214, h_scale=1.414214,
-                 nms_threshold=0.1, nms_sigma=0.001):
+                 nms_threshold=0.1, nms_sigma=0.001,
+                 scale_aspect=ml.utils.NMS_SCALE_ASPECT_KEEP):
         self.threshold = threshold
         self.w_scale = w_scale
         self.h_scale = h_scale
         self.nms_threshold = nms_threshold
         self.nms_sigma = nms_sigma
+        self.scale_aspect = scale_aspect
 
     def __call__(self, model, inputs, outputs):
         ob, oh, ow, oc = model.output_shape[0]
@@ -131,27 +133,19 @@ class fomo_postprocess:
         # Compute the bounding box information
         x_center = (bb_cols + 0.5) / ow
         y_center = (bb_rows + 0.5) / oh
-        w_rel = np.full(len(bb_cols), self.w_scale / ow) * 0.5
-        h_rel = np.full(len(bb_rows), self.h_scale / oh) * 0.5
+        w_rel = np.full(len(bb_cols), self.w_scale / ow)
+        h_rel = np.full(len(bb_rows), self.h_scale / oh)
 
-        # Scale the bounding boxes to have enough integer precision for NMS
-        ib, ih, iw, ic = model.input_shape[0]
-        xmin = (x_center - w_rel) * iw
-        ymin = (y_center - h_rel) * ih
-        xmax = (x_center + w_rel) * iw
-        ymax = (y_center + h_rel) * ih
-
-        nms = NMS(iw, ih, inputs[0].roi)
-        for i in range(bb.shape[0]):
-            nms.add_bounding_box(xmin[i], ymin[i], xmax[i], ymax[i],
-                                 bb_scores[i], bb_classes[i])
-        return nms.get_bounding_boxes(threshold=self.nms_threshold, sigma=self.nms_sigma)
+        return ml.utils.box_nms(x_center, y_center, w_rel, h_rel, bb_scores, bb_classes,
+                                model.input_shape[0][1:3], inputs[0].roi,
+                                self.nms_threshold, self.nms_sigma, self.scale_aspect)
 
 
 # This is a lightweight version of the tiny yolo v2 object detection algorithm.
 # It was optimized to work well on embedded devices with limited computational resources.
 class yolo_v2_postprocess:
-    def __init__(self, threshold=0.6, anchors=None, nms_threshold=0.1, nms_sigma=0.1):
+    def __init__(self, threshold=0.6, anchors=None, nms_threshold=0.1, nms_sigma=0.1,
+                 scale_aspect=ml.utils.NMS_SCALE_ASPECT_KEEP):
         self.threshold = threshold
         self.anchors = anchors
         if self.anchors is None:
@@ -163,6 +157,7 @@ class yolo_v2_postprocess:
         self.anchors_len = len(self.anchors)
         self.nms_threshold = nms_threshold
         self.nms_sigma = nms_sigma
+        self.scale_aspect = scale_aspect
 
     def __call__(self, model, inputs, outputs):
         ob, oh, ow, oc = model.output_shape[0]
@@ -200,41 +195,35 @@ class yolo_v2_postprocess:
         # Compute the bounding box information
         x_center = (bb_cols + sigmoid(bb[:, _YOLO_V2_TX])) / ow
         y_center = (bb_rows + sigmoid(bb[:, _YOLO_V2_TY])) / oh
-        w_rel = ((bb_a_array[:, 0] * np.exp(bb[:, _YOLO_V2_TW])) / ow) * 0.5
-        h_rel = ((bb_a_array[:, 1] * np.exp(bb[:, _YOLO_V2_TH])) / oh) * 0.5
+        w_rel = (bb_a_array[:, 0] * np.exp(bb[:, _YOLO_V2_TW])) / ow
+        h_rel = (bb_a_array[:, 1] * np.exp(bb[:, _YOLO_V2_TH])) / oh
 
-        # Scale the bounding boxes to have enough integer precision for NMS
-        ib, ih, iw, ic = model.input_shape[0]
-        xmin = (x_center - w_rel) * iw
-        ymin = (y_center - h_rel) * ih
-        xmax = (x_center + w_rel) * iw
-        ymax = (y_center + h_rel) * ih
-
-        nms = NMS(iw, ih, inputs[0].roi)
-        for i in range(bb.shape[0]):
-            nms.add_bounding_box(xmin[i], ymin[i], xmax[i], ymax[i],
-                                 bb_scores[i], bb_classes[i])
-        return nms.get_bounding_boxes(threshold=self.nms_threshold, sigma=self.nms_sigma)
+        return ml.utils.box_nms(x_center, y_center, w_rel, h_rel, bb_scores, bb_classes,
+                                model.input_shape[0][1:3], inputs[0].roi,
+                                self.nms_threshold, self.nms_sigma, self.scale_aspect)
 
 
 # This is a lightweight version of the YOLO (You Only Look Once) object detection algorithm.
 # It is designed to work well on embedded devices with limited computational resources.
 class yolo_lc_postprocess(yolo_v2_postprocess):
-    def __init__(self, threshold=0.6, anchors=None, nms_threshold=0.1, nms_sigma=0.1):
+    def __init__(self, threshold=0.6, anchors=None, nms_threshold=0.1, nms_sigma=0.1,
+                 scale_aspect=ml.utils.NMS_SCALE_ASPECT_KEEP):
         if anchors is None:
             anchors = np.array([[0.076023, 0.258508],
                                 [0.163031, 0.413531],
                                 [0.234769, 0.702585],
                                 [0.427054, 0.715892],
                                 [0.748154, 0.857092]])
-        super().__init__(threshold, anchors, nms_threshold, nms_sigma)
+        super().__init__(threshold, anchors, nms_threshold, nms_sigma, scale_aspect)
 
 
 class yolo_v5_postprocess:
-    def __init__(self, threshold=0.6, nms_threshold=0.1, nms_sigma=0.1):
+    def __init__(self, threshold=0.6, nms_threshold=0.1, nms_sigma=0.1,
+                 scale_aspect=ml.utils.NMS_SCALE_ASPECT_KEEP):
         self.threshold = threshold
         self.nms_threshold = nms_threshold
         self.nms_sigma = nms_sigma
+        self.scale_aspect = scale_aspect
 
     def __call__(self, model, inputs, outputs):
         oh, ow, oc = model.output_shape[0]
@@ -263,28 +252,21 @@ class yolo_v5_postprocess:
         # Compute the bounding box information
         x_center = bb[:, _YOLO_V5_CX]
         y_center = bb[:, _YOLO_V5_CY]
-        w_rel = bb[:, _YOLO_V5_CW] * 0.5
-        h_rel = bb[:, _YOLO_V5_CH] * 0.5
+        w_rel = bb[:, _YOLO_V5_CW]
+        h_rel = bb[:, _YOLO_V5_CH]
 
-        # Scale the bounding boxes to have enough integer precision for NMS
-        ib, ih, iw, ic = model.input_shape[0]
-        xmin = (x_center - w_rel) * iw
-        ymin = (y_center - h_rel) * ih
-        xmax = (x_center + w_rel) * iw
-        ymax = (y_center + h_rel) * ih
-
-        nms = NMS(iw, ih, inputs[0].roi)
-        for i in range(bb.shape[0]):
-            nms.add_bounding_box(xmin[i], ymin[i], xmax[i], ymax[i],
-                                 bb_scores[i], bb_classes[i])
-        return nms.get_bounding_boxes(threshold=self.nms_threshold, sigma=self.nms_sigma)
+        return ml.utils.box_nms(x_center, y_center, w_rel, h_rel, bb_scores, bb_classes,
+                                model.input_shape[0][1:3], inputs[0].roi,
+                                self.nms_threshold, self.nms_sigma, self.scale_aspect)
 
 
 class yolo_v8_postprocess:
-    def __init__(self, threshold=0.6, nms_threshold=0.1, nms_sigma=0.1):
+    def __init__(self, threshold=0.6, nms_threshold=0.1, nms_sigma=0.1,
+                 scale_aspect=ml.utils.NMS_SCALE_ASPECT_KEEP):
         self.threshold = threshold
         self.nms_threshold = nms_threshold
         self.nms_sigma = nms_sigma
+        self.scale_aspect = scale_aspect
 
     def __call__(self, model, inputs, outputs):
         oh, ow, oc = model.output_shape[0]
@@ -313,18 +295,9 @@ class yolo_v8_postprocess:
         # Compute the bounding box information
         x_center = bb[:, _YOLO_V8_CX]
         y_center = bb[:, _YOLO_V8_CY]
-        w_rel = bb[:, _YOLO_V8_CW] * 0.5
-        h_rel = bb[:, _YOLO_V8_CH] * 0.5
+        w_rel = bb[:, _YOLO_V8_CW]
+        h_rel = bb[:, _YOLO_V8_CH]
 
-        # Scale the bounding boxes to have enough integer precision for NMS
-        ib, ih, iw, ic = model.input_shape[0]
-        xmin = (x_center - w_rel) * iw
-        ymin = (y_center - h_rel) * ih
-        xmax = (x_center + w_rel) * iw
-        ymax = (y_center + h_rel) * ih
-
-        nms = NMS(iw, ih, inputs[0].roi)
-        for i in range(bb.shape[0]):
-            nms.add_bounding_box(xmin[i], ymin[i], xmax[i], ymax[i],
-                                 bb_scores[i], bb_classes[i])
-        return nms.get_bounding_boxes(threshold=self.nms_threshold, sigma=self.nms_sigma)
+        return ml.utils.box_nms(x_center, y_center, w_rel, h_rel, bb_scores, bb_classes,
+                                model.input_shape[0][1:3], inputs[0].roi,
+                                self.nms_threshold, self.nms_sigma, self.scale_aspect)

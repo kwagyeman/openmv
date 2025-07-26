@@ -28,6 +28,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import math
 from ulab import numpy as np
+import uml
 
 
 _NO_DETECTION = const(())
@@ -43,17 +44,6 @@ def sigmoid(x):
 
 def mod(a, b):
     return a - (b * (a // b))
-
-
-def threshold(scores, threshold, scale, find_max=False, find_max_axis=1):
-    if scale > 0:
-        if find_max:
-            scores = np.max(scores, axis=find_max_axis)
-        return np.nonzero(scores > threshold)[0]
-    else:
-        if find_max:
-            scores = np.min(scores, axis=find_max_axis)
-        return np.nonzero(scores < threshold)[0]
 
 
 def quantize(model, value, index=0):

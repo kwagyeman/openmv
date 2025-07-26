@@ -46,8 +46,8 @@ class YoloV5:
 
     def __call__(self, model, inputs, outputs):
         oh, ow, oc = model.output_shape[0]
-        scale = model.output_scale[0]
-        t = quantize(model, self.threshold)
+        s = model.output_scale[0]
+        zp = model.output_zero_point[0]
         class_count = oc - _YOLO_V5_CLASSES
 
         # Reshape the output to a 2D array
@@ -55,7 +55,7 @@ class YoloV5:
 
         # Threshold all the scores
         score_indices = row_outputs[:, _YOLO_V5_SCORE]
-        score_indices = threshold(score_indices, t, scale)
+        score_indices = uml.threshold(score_indices, s, zp, self.threshold)
         if not len(score_indices):
             return _NO_DETECTION
 
@@ -83,8 +83,8 @@ class YoloV5:
 
         nms = NMS(iw, ih, inputs[0].roi)
         for i in range(bb.shape[0]):
-            nms.add_bounding_box(xmin[i], ymin[i], xmax[i], ymax[i],
-                                 bb_scores[i], bb_classes[i])
+            nms.add_bounding_box(xmin[i], ymin[i], xmax[i], ymax[i], bb_scores[i], bb_classes[i])
+
         return nms.get_bounding_boxes(threshold=self.nms_threshold, sigma=self.nms_sigma)
 
 
@@ -102,8 +102,8 @@ class yolo_v8_postprocess:
 
     def __call__(self, model, inputs, outputs):
         oh, ow, oc = model.output_shape[0]
-        scale = model.output_scale[0]
-        t = quantize(model, self.threshold)
+        s = model.output_scale[0]
+        zp = model.output_zero_point[0]
         class_count = ow - _YOLO_V8_CLASSES
 
         # Reshape the output to a 2D array
@@ -111,7 +111,7 @@ class yolo_v8_postprocess:
 
         # Threshold all the scores
         score_indices = row_outputs[:, _YOLO_V8_CLASSES:]
-        score_indices = threshold(score_indices, t, scale, find_max=True, find_max_axis=1)
+        score_indices = uml.threshold(score_indices, s, zp, self.threshold)
         if not len(score_indices):
             return _NO_DETECTION
 
@@ -139,6 +139,6 @@ class yolo_v8_postprocess:
 
         nms = NMS(iw, ih, inputs[0].roi)
         for i in range(bb.shape[0]):
-            nms.add_bounding_box(xmin[i], ymin[i], xmax[i], ymax[i],
-                                 bb_scores[i], bb_classes[i])
+            nms.add_bounding_box(xmin[i], ymin[i], xmax[i], ymax[i], bb_scores[i], bb_classes[i])
+
         return nms.get_bounding_boxes(threshold=self.nms_threshold, sigma=self.nms_sigma)

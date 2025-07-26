@@ -26,6 +26,7 @@
 # OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+import uml
 import ml.utils
 from micropython import const
 from ulab import numpy as np
@@ -69,17 +70,6 @@ def softmax(x):
     return e_x / np.sum(e_x, axis=1, keepdims=True)
 
 
-def threshold(scores, threshold, scale, find_max=False, find_max_axis=1):
-    if scale > 0:
-        if find_max:
-            scores = np.max(scores, axis=find_max_axis)
-        return np.nonzero(scores > threshold)[0]
-    else:
-        if find_max:
-            scores = np.min(scores, axis=find_max_axis)
-        return np.nonzero(scores < threshold)[0]
-
-
 def quantize(model, value):
     if model.output_dtype[0] == 'f':
         return value
@@ -105,15 +95,15 @@ class fomo_postprocess:
 
     def __call__(self, model, inputs, outputs):
         ob, oh, ow, oc = model.output_shape[0]
-        scale = model.output_scale[0]
-        t = quantize(model, self.threshold)
+        s = model.output_scale[0]
+        zp = model.output_zero_point[0]
 
         # Reshape the output to a 2D array
         row_outputs = outputs[0].reshape((oh * ow, oc))
 
         # Threshold all the scores
         score_indices = row_outputs[:, _FOMO_CLASSES:]
-        score_indices = threshold(score_indices, t, scale, find_max=True, find_max_axis=1)
+        score_indices = uml.threshold(score_indices, s, zp, self.threshold)
         if not len(score_indices):
             return _NO_DETECTION
 
@@ -161,8 +151,8 @@ class yolo_v2_postprocess:
 
     def __call__(self, model, inputs, outputs):
         ob, oh, ow, oc = model.output_shape[0]
-        scale = model.output_scale[0]
-        t = quantize(model, logit(self.threshold))
+        s = model.output_scale[0]
+        zp = model.output_zero_point[0]
         class_count = (oc // self.anchors_len) - _YOLO_V2_CLASSES
 
         # Reshape the output to a 2D array
@@ -171,7 +161,7 @@ class yolo_v2_postprocess:
 
         # Threshold all the scores
         score_indices = row_outputs[:, _YOLO_V2_SCORE]
-        score_indices = threshold(score_indices, t, scale)
+        score_indices = uml.threshold(score_indices, s, zp, logit(self.threshold))
         if not len(score_indices):
             return _NO_DETECTION
 
@@ -227,8 +217,8 @@ class yolo_v5_postprocess:
 
     def __call__(self, model, inputs, outputs):
         oh, ow, oc = model.output_shape[0]
-        scale = model.output_scale[0]
-        t = quantize(model, self.threshold)
+        s = model.output_scale[0]
+        zp = model.output_zero_point[0]
         class_count = oc - _YOLO_V5_CLASSES
 
         # Reshape the output to a 2D array
@@ -236,7 +226,7 @@ class yolo_v5_postprocess:
 
         # Threshold all the scores
         score_indices = row_outputs[:, _YOLO_V5_SCORE]
-        score_indices = threshold(score_indices, t, scale)
+        score_indices = uml.threshold(score_indices, s, zp, self.threshold)
         if not len(score_indices):
             return _NO_DETECTION
 
@@ -270,8 +260,8 @@ class yolo_v8_postprocess:
 
     def __call__(self, model, inputs, outputs):
         oh, ow, oc = model.output_shape[0]
-        scale = model.output_scale[0]
-        t = quantize(model, self.threshold)
+        s = model.output_scale[0]
+        zp = model.output_zero_point[0]
         class_count = ow - _YOLO_V8_CLASSES
 
         # Reshape the output to a 2D array
@@ -279,7 +269,7 @@ class yolo_v8_postprocess:
 
         # Threshold all the scores
         score_indices = row_outputs[:, _YOLO_V8_CLASSES:]
-        score_indices = threshold(score_indices, t, scale, find_max=True, find_max_axis=1)
+        score_indices = uml.threshold(score_indices, s, zp, self.threshold)
         if not len(score_indices):
             return _NO_DETECTION
 

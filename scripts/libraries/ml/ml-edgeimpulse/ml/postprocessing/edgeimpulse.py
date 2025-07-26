@@ -47,15 +47,15 @@ class Fomo:
 
     def __call__(self, model, inputs, outputs):
         ob, oh, ow, oc = model.output_shape[0]
-        scale = model.output_scale[0]
-        t = quantize(model, self.threshold)
+        s = model.output_scale[0]
+        zp = model.output_zero_point[0]
 
         # Reshape the output to a 2D array
         row_outputs = outputs[0].reshape((oh * ow, oc))
 
         # Threshold all the scores
         score_indices = row_outputs[:, _FOMO_CLASSES:]
-        score_indices = threshold(score_indices, t, scale, find_max=True, find_max_axis=1)
+        score_indices = uml.threshold(score_indices, s, zp, self.threshold)
         if not len(score_indices):
             return _NO_DETECTION
 

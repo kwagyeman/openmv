@@ -66,8 +66,8 @@ class YoloV2:
             return e_x / np.sum(e_x, axis=1, keepdims=True)
 
         ob, oh, ow, oc = model.output_shape[0]
-        scale = model.output_scale[0]
-        t = quantize(model, logit(self.threshold))
+        s = model.output_scale[0]
+        zp = model.output_zero_point[0]
         class_count = (oc // self.anchors_len) - _YOLO_V2_CLASSES
 
         # Reshape the output to a 2D array
@@ -75,7 +75,7 @@ class YoloV2:
 
         # Threshold all the scores
         score_indices = row_outputs[:, _YOLO_V2_SCORE]
-        score_indices = threshold(score_indices, t, scale)
+        score_indices = uml.threshold(score_indices, s, zp, logit(self.threshold))
         if not len(score_indices):
             return _NO_DETECTION
 

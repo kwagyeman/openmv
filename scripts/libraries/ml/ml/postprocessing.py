@@ -34,6 +34,36 @@ from ulab import numpy as np
 
 
 _NO_DETECTION = const(())
+_YOLO_V2_TX = const(0)
+_YOLO_V2_TY = const(1)
+_YOLO_V2_TW = const(2)
+_YOLO_V2_TH = const(3)
+_YOLO_V2_SCORE = const(4)
+_YOLO_V2_CLASSES = const(5)
+_YOLO_V5_CX = const(0)
+_YOLO_V5_CY = const(1)
+_YOLO_V5_CW = const(2)
+_YOLO_V5_CH = const(3)
+_YOLO_V5_SCORE = const(4)
+_YOLO_V5_CLASSES = const(5)
+_YOLO_V8_CX = const(0)
+_YOLO_V8_CY = const(1)
+_YOLO_V8_CW = const(2)
+_YOLO_V8_CH = const(3)
+_YOLO_V8_CLASSES = const(4)
+
+
+def sigmoid(x):
+    return 1.0 / (1.0 + np.exp(-x))
+
+
+def mod(a, b):
+    return a - (b * (a // b))
+
+
+def softmax(x):
+    e_x = np.exp(x - np.max(x, axis=1, keepdims=True))
+    return e_x / np.sum(e_x, axis=1, keepdims=True)
 
 
 def dequantize(model, value):
@@ -73,13 +103,6 @@ class fomo_postprocess:
 # This is a lightweight version of the tiny yolo v2 object detection algorithm.
 # It was optimized to work well on embedded devices with limited computational resources.
 class yolo_v2_postprocess:
-    _YOLO_V2_TX = const(0)
-    _YOLO_V2_TY = const(1)
-    _YOLO_V2_TW = const(2)
-    _YOLO_V2_TH = const(3)
-    _YOLO_V2_SCORE = const(4)
-    _YOLO_V2_CLASSES = const(5)
-
     def __init__(self, threshold=0.6, anchors=None, nms_threshold=0.1, nms_sigma=0.1):
         self.threshold = threshold
         self.anchors = anchors
@@ -96,16 +119,6 @@ class yolo_v2_postprocess:
     def __call__(self, model, inputs, outputs):
         ob, oh, ow, oc = model.output_shape[0]
         class_count = (oc // self.anchors_len) - _YOLO_V2_CLASSES
-
-        def sigmoid(x):
-            return 1.0 / (1.0 + np.exp(-x))
-
-        def mod(a, b):
-            return a - (b * (a // b))
-
-        def softmax(x):
-            e_x = np.exp(x - np.max(x, axis=1, keepdims=True))
-            return e_x / np.sum(e_x, axis=1, keepdims=True)
 
         # Reshape the output to a 2D array
         row_outputs = outputs[0].reshape((oh * ow * self.anchors_len,
@@ -171,13 +184,6 @@ class yolo_lc_postprocess(yolo_v2_postprocess):
 
 
 class yolo_v5_postprocess:
-    _YOLO_V5_CX = const(0)
-    _YOLO_V5_CY = const(1)
-    _YOLO_V5_CW = const(2)
-    _YOLO_V5_CH = const(3)
-    _YOLO_V5_SCORE = const(4)
-    _YOLO_V5_CLASSES = const(5)
-
     def __init__(self, threshold=0.6, nms_threshold=0.1, nms_sigma=0.1):
         self.threshold = threshold
         self.nms_threshold = nms_threshold
@@ -226,12 +232,6 @@ class yolo_v5_postprocess:
 
 
 class yolo_v8_postprocess:
-    _YOLO_V8_CX = const(0)
-    _YOLO_V8_CY = const(1)
-    _YOLO_V8_CW = const(2)
-    _YOLO_V8_CH = const(3)
-    _YOLO_V8_CLASSES = const(4)
-
     def __init__(self, threshold=0.6, nms_threshold=0.1, nms_sigma=0.1):
         self.threshold = threshold
         self.nms_threshold = nms_threshold

@@ -66,15 +66,15 @@ static int reset(omv_csi_t *csi) {
                       i, FLIR_BOSON_BOOT_TRY_COUNT - 1);
         }
 
-        // Give the camera time to boot.
-        mp_hal_delay_ms(FLIR_BOSON_BOOT_TIME_MS);
-
         // Turn the com port on.
         Initialize();
 
         if (bosonGetCameraPN(&part) == FLR_OK) {
             break;
         }
+
+        // Give the camera time to boot.
+        mp_hal_delay_ms(FLIR_BOSON_BOOT_TIME_MS);  
     }
 
     if (i == FLIR_BOSON_BOOT_TRY_COUNT) {

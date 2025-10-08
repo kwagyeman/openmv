@@ -31,9 +31,6 @@ from ulab import numpy as np
 import uml
 
 
-_NO_DETECTION = const(())
-
-
 def logit(x):
     return np.log(x / (1.0 - x))
 

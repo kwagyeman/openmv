@@ -88,7 +88,7 @@ class YoloV5:
         return nms.get_bounding_boxes(threshold=self.nms_threshold, sigma=self.nms_sigma)
 
 
-class yolo_v8_postprocess:
+class YoloV8:
     _YOLO_V8_CX = const(0)
     _YOLO_V8_CY = const(1)
     _YOLO_V8_CW = const(2)

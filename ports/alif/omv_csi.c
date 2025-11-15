@@ -369,6 +369,12 @@ int alif_csi_snapshot(omv_csi_t *csi, image_t *dst_image, uint32_t flags) {
         src_cimage.w = csi->resolution[csi->framesize][0];
         src_cimage.h = csi->resolution[csi->framesize][1];
 
+        // GPU only supports GRAYSCALE/RGB565 buffers. BAYER==GRAYSCALE for GPU.
+        if (src_cimage.pixfmt == PIXFORMAT_BAYER) {
+            src_cimage.pixfmt = PIXFORMAT_GRAYSCALE;
+            dst_cimage.pixfmt = PIXFORMAT_GRAYSCALE;
+        }
+
         // Offset the pixels buffer for the debayer code.
         if (csi->pixformat == PIXFORMAT_RGB565) {
             src_cimage.data += omv_csi_get_fb_offset(csi);

@@ -205,6 +205,5 @@
 #define OMV_CSI_MXCLK_PIN               (&omv_pin_DCMI_MCLK)
 #define OMV_CSI_RESET_PIN               (&omv_pin_DCMI_RESET)
 #define OMV_CSI_POWER_PIN               (&omv_pin_DCMI_POWER)
-#define OMV_CSI_FSYNC_PIN               (&omv_pin_DCMI_FSYNC)
 
 #endif //__BOARD_CONFIG_H__

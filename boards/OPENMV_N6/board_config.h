@@ -334,7 +334,7 @@
 #define OMV_CSI_PXCLK_PIN                   (&omv_pin_G1_DCMI)
 #define OMV_CSI_RESET_PIN                   (&omv_pin_E3_GPIO)
 #define OMV_CSI_POWER_PIN                   (&omv_pin_E1_GPIO)
-//#define OMV_CSI_FSYNC_PIN                   (&omv_pin_B4_GPIO)
+#define OMV_CSI_FSYNC_PIN                   (&omv_pin_D6_GPIO)
 
 #define OMV_XSPI1_IO00_PIN                  (&omv_pin_P0_XSPIM_P1)
 #define OMV_XSPI1_IO01_PIN                  (&omv_pin_P1_XSPIM_P1)

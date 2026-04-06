@@ -39,6 +39,7 @@
 
 #include "omv_csi.h"
 #include "omv_gpio.h"
+#include "genx320.h"
 
 #include "imlib.h"
 #include "py_assert.h"

@@ -268,35 +268,6 @@ typedef enum {
     OMV_CSI_ERROR_WOULD_BLOCK           = -21,
 } omv_csi_error_t;
 
-#if (OMV_GENX320_ENABLE == 1)
-typedef enum {
-    OMV_CSI_GENX320_MODE_HISTO,
-    OMV_CSI_GENX320_MODE_EVENT,
-} genx_mode_t;
-
-typedef enum {
-    OMV_CSI_GENX320_BIASES_DEFAULT,
-    OMV_CSI_GENX320_BIASES_LOW_LIGHT,
-    OMV_CSI_GENX320_BIASES_ACTIVE_MARKER,
-    OMV_CSI_GENX320_BIASES_LOW_NOISE,
-    OMV_CSI_GENX320_BIASES_HIGH_SPEED
-} omv_csi_genx320_biases_preset_t;
-
-typedef enum {
-    OMV_CSI_GENX320_BIAS_DIFF_OFF,
-    OMV_CSI_GENX320_BIAS_DIFF_ON,
-    OMV_CSI_GENX320_BIAS_FO,
-    OMV_CSI_GENX320_BIAS_HPF,
-    OMV_CSI_GENX320_BIAS_REFR
-} omv_csi_genx320_bias_t;
-
-typedef enum {
-    OMV_CSI_GENX320_STC_DISABLE,
-    OMV_CSI_GENX320_STC_ONLY,
-    OMV_CSI_GENX320_STC_TRAIL_ONLY,
-    OMV_CSI_GENX320_STC_TRAIL
-} omv_csi_stc_modes_t;
-#endif
 
 typedef struct _omv_csi omv_csi_t;
 

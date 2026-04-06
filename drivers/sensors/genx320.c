@@ -34,6 +34,7 @@
 #include "framebuffer.h"
 #include "omv_i2c.h"
 #include "omv_csi.h"
+#include "genx320.h"
 
 #include "evt_2_0.h"
 #include "psee_genx320.h"
@@ -81,7 +82,7 @@ typedef struct genx_state {
     int32_t brightness;
     uint64_t event_time_us;
     const struct issd *issd;
-    genx_mode_t mode;
+    genx320_mode_t mode;
     AFK_HandleTypeDef psee_afk;
     STC_HandleTypeDef psee_stc;
     ec_event_t *events;
@@ -89,7 +90,7 @@ typedef struct genx_state {
 
 static genx_state_t genx = {};
 
-static int set_active_mode(omv_csi_t *csi, genx_mode_t mode, int framesize);
+static int set_active_mode(omv_csi_t *csi, genx320_mode_t mode, int framesize);
 
 static int reset(omv_csi_t *csi) {
     genx_state_t *genx = csi->priv;
@@ -691,7 +692,7 @@ static int post_process_event(omv_csi_t *csi, image_t *image, uint32_t flags) {
     return valid_count;
 }
 
-static int set_active_mode(omv_csi_t *csi, genx_mode_t mode, int framesize) {
+static int set_active_mode(omv_csi_t *csi, genx320_mode_t mode, int framesize) {
     genx_state_t *genx = csi->priv;
 
     if (genx->issd) {

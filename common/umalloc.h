@@ -39,6 +39,7 @@
 #define UMA_DMA_D2          (1 << 4)
 #define UMA_DMA_D3          (1 << 5)
 #define UMA_TRANSIENT       (1 << 6)
+#define UMA_DISPLAY         (1 << 7)
 #define UMA_MEM_ATTR_MASK   (0xFF)
 
 // Allocation flags (bits 8+)

@@ -50,6 +50,10 @@
 #define OMV_DISPLAY_DISP_PIN OMV_RGB_DISPLAY_DISP_PIN
 #endif
 
+#ifndef OMV_RGB_DISPLAY_BUFFER_FLAGS
+#define OMV_RGB_DISPLAY_BUFFER_FLAGS (0)
+#endif
+
 typedef struct display_mode {
     uint32_t hactive;
     uint32_t vactive;
@@ -348,7 +352,7 @@ static void ltdc_init(py_display_obj_t *self, display_mode_t *dm) {
     uint32_t fb_size = dm->hactive * dm->vactive * sizeof(uint16_t);
 
     for (int i = 0; i < FRAMEBUFFER_COUNT; i++) {
-        self->framebuffers[i] = (uint16_t *) uma_calloc(fb_size, UMA_PERSIST | UMA_CACHE);
+        self->framebuffers[i] = (uint16_t *) uma_calloc(fb_size, UMA_PERSIST | UMA_CACHE | OMV_RGB_DISPLAY_BUFFER_FLAGS);
         display.framebuffer_layers[i].WindowX0 = 0;
         display.framebuffer_layers[i].WindowX1 = dm->hactive;
         display.framebuffer_layers[i].WindowY0 = 0;

@@ -117,11 +117,14 @@
 #define OMV_GC_BLOCK1_MEMORY                    DRAM    // Extra GC block 0.
 #define OMV_GC_BLOCK1_SIZE                      (8M)
 #define OMV_UMA_BLOCK0_MEMORY                   DRAM    // Default UMA pool.
-#define OMV_UMA_BLOCK0_SIZE                     (55M)
+#define OMV_UMA_BLOCK0_SIZE                     (39M)
 #define OMV_UMA_BLOCK0_FLAGS                    (0)
 #define OMV_UMA_BLOCK1_MEMORY                   SRAM0   // Fast UMA pool.
 #define OMV_UMA_BLOCK1_SIZE                     (496K)
 #define OMV_UMA_BLOCK1_FLAGS                    (UMA_FAST | UMA_DTCM)
+#define OMV_UMA_BLOCK2_MEMORY                   DRAM
+#define OMV_UMA_BLOCK2_SIZE                     (16M)
+#define OMV_UMA_BLOCK2_FLAGS                    (UMA_DISPLAY)
 #define OMV_MSC_BUF_SIZE                        (2K)    // USB MSC bot data
 #define OMV_LINE_BUF_SIZE                       (11 * 1024) // Image line buffer round(2592 * 2BPP * 2 buffers).
 #define OMV_VOSPI_DMA_BUFFER                    ".dma_buffer"
@@ -286,6 +289,7 @@
 #define OMV_RGB_DISPLAY_CLK_DISABLE()           __HAL_RCC_LTDC_CLK_DISABLE()
 #define OMV_RGB_DISPLAY_FORCE_RESET()           __HAL_RCC_LTDC_FORCE_RESET()
 #define OMV_RGB_DISPLAY_RELEASE_RESET()         __HAL_RCC_LTDC_RELEASE_RESET()
+#define OMV_RGB_DISPLAY_BUFFER_FLAGS            (UMA_STRICT | UMA_DISPLAY)
 
 #define OMV_RGB_DISPLAY_R0_PIN                  (&omv_pin_G13_LTDC)
 #define OMV_RGB_DISPLAY_R1_PIN                  (&omv_pin_A2_LTDC)

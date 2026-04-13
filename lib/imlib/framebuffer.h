@@ -35,6 +35,10 @@
 #define FRAMEBUFFER_ALIGNMENT    OMV_CACHE_LINE_SIZE
 #endif
 
+#ifndef FRAMEBUFFER_RAW_BPP_DEF
+#define FRAMEBUFFER_RAW_BPP_DEF  2
+#endif
+
 // Framebuffer ID
 typedef enum {
     FB_MAINFB_ID    = 0,
@@ -81,6 +85,7 @@ typedef struct framebuffer {
     uint8_t enabled;        // Enable/disable framebuffer
     uint8_t quality;        // JPEG compression quality (1-100)
     uint8_t raw_enabled;    // Enable raw streaming
+    uint32_t raw_bpp;       // Bytes per pixel for resizing.
     uint32_t source;        // Stream buffer source ID.
     size_t raw_size;        // Raw buffer size.
     char *raw_base;         // Raw buffer address.
@@ -123,7 +128,7 @@ typedef struct __attribute__((packed)) framebuffer_header {
 void framebuffer_init0();
 
 // Initializes a frame buffer instance.
-void framebuffer_init(framebuffer_t *fb, void *buff, size_t size, bool dynamic, bool enabled);
+void framebuffer_init(framebuffer_t *fb, void *buff, size_t size, bool dynamic, bool enabled, int raw_bpp);
 
 // Initializes an image from the frame buffer.
 void framebuffer_to_image(framebuffer_t *fb, image_t *img);

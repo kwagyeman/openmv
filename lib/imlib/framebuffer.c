@@ -44,18 +44,18 @@ void framebuffer_init0() {
     bool enabled = framebuffer_get(FB_STREAM_ID)->enabled;
 
     // Initialize the main framebuffer.
-    framebuffer_init(framebuffer_get(FB_MAINFB_ID), NULL, 0, true, true);
+    framebuffer_init(framebuffer_get(FB_MAINFB_ID), NULL, 0, true, true, FRAMEBUFFER_RAW_BPP_DEF);
 
     // Initialize the streaming buffer.
     framebuffer_init(framebuffer_get(FB_STREAM_ID), &_sb_memory_start,
-                     &_sb_memory_end - &_sb_memory_start, false, enabled);
+                     &_sb_memory_end - &_sb_memory_start, false, enabled, FRAMEBUFFER_RAW_BPP_DEF);
 
     // Reset embedded header
     framebuffer_t *fb = framebuffer_get(FB_STREAM_ID);
     memset(fb->raw_base, 0, sizeof(framebuffer_header_t));
 }
 
-void framebuffer_init(framebuffer_t *fb, void *buff, size_t size, bool dynamic, bool enabled) {
+void framebuffer_init(framebuffer_t *fb, void *buff, size_t size, bool dynamic, bool enabled, int raw_bpp) {
     // Clear framebuffers
     memset(fb, 0, sizeof(framebuffer_t));
 
@@ -63,6 +63,7 @@ void framebuffer_init(framebuffer_t *fb, void *buff, size_t size, bool dynamic, 
     fb->raw_base = buff;
     fb->dynamic = dynamic;
     fb->enabled = enabled;
+    fb->raw_bpp = raw_bpp;
     #if OMV_RAW_PREVIEW_ENABLE
     fb->raw_w = OMV_RAW_PREVIEW_WIDTH;
     fb->raw_h = OMV_RAW_PREVIEW_HEIGHT;

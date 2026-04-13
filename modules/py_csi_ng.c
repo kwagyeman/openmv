@@ -1346,12 +1346,13 @@ static mp_obj_t py_csi_read_reg(mp_obj_t self_in, mp_obj_t addr) {
 static MP_DEFINE_CONST_FUN_OBJ_2(py_csi_read_reg_obj, py_csi_read_reg);
 
 mp_obj_t py_csi_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args) {
-    enum { ARG_id, ARG_delays, ARG_fflush, ARG_stream };
+    enum { ARG_id, ARG_delays, ARG_fflush, ARG_stream, ARG_raw_bpp };
     static const mp_arg_t allowed_args[] = {
         { MP_QSTR_cid, MP_ARG_INT | MP_ARG_KW_ONLY, {.u_int = -1 } },
         { MP_QSTR_delays, MP_ARG_BOOL | MP_ARG_KW_ONLY,  {.u_bool = true} },
         { MP_QSTR_fflush, MP_ARG_BOOL | MP_ARG_KW_ONLY,  {.u_bool = true} },
         { MP_QSTR_stream, MP_ARG_OBJ | MP_ARG_KW_ONLY,  {.u_rom_obj = MP_ROM_NONE} },
+        { MP_QSTR_raw_bpp, MP_ARG_INT | MP_ARG_KW_ONLY,  {.u_int = -1} },
     };
 
     // Parse args.
@@ -1359,6 +1360,7 @@ mp_obj_t py_csi_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, 
     mp_arg_parse_all_kw_array(n_args, n_kw, all_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
 
     omv_csi_t *csi = omv_csi_get(args[ARG_id].u_int);
+    int raw_bpp = args[ARG_raw_bpp].u_int;
 
     if (!csi || !csi->detected) {
         omv_csi_raise_error(OMV_CSI_ERROR_ISC_UNDETECTED);
@@ -1373,7 +1375,9 @@ mp_obj_t py_csi_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, 
 
     if (csi->fb == NULL) {
         csi->fb = (framebuffer_t *) m_malloc(sizeof(framebuffer_t));
-        framebuffer_init(csi->fb, NULL, 0, true, true);
+        framebuffer_init(csi->fb, NULL, 0, true, true, raw_bpp > 0 ? raw_bpp : FRAMEBUFFER_RAW_BPP_DEF);
+    } else if (raw_bpp > 0) {
+        framebuffer_init(csi->fb, NULL, 0, true, true, raw_bpp);
     }
 
     // Set the streaming source.

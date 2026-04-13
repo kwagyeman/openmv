@@ -1340,10 +1340,12 @@ __weak int omv_csi_set_framebuffers(omv_csi_t *csi, size_t count) {
     // TODO pass this to resize.
     #if OMV_CSI_HW_CROP_ENABLE
     // If hardware cropping is supported, use window size.
-    size_t frame_size = csi->fb->u * csi->fb->v * 2;
+    size_t frame_size = csi->fb->u * csi->fb->v * csi->fb->raw_bpp;
     #else
     // Otherwise, use the real frame size.
-    size_t frame_size = csi->resolution[csi->framesize][0] * csi->resolution[csi->framesize][1] * 2;
+    size_t frame_size = csi->resolution[csi->framesize][0] *
+                        csi->resolution[csi->framesize][1] *
+                        csi->fb->raw_bpp;
     #endif
 
     if (count == -1) {

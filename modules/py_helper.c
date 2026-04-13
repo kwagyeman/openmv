@@ -595,7 +595,7 @@ void py_helper_set_to_framebuffer(image_t *img) {
     #endif
 
     // Resize the frame buffer to fit the biggest uncompressed image.
-    framebuffer_resize(fb, 1, OMV_MAX(image_size(img), fb->u * fb->v * 2));
+    framebuffer_resize(fb, 1, OMV_MAX(image_size(img), fb->u * fb->v * fb->raw_bpp));
 
     // This should never be NULL after resizing the frame buffer.
     vbuffer_t *buffer = framebuffer_acquire(fb, FB_FLAG_FREE | FB_FLAG_PEEK);

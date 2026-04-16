@@ -36,6 +36,7 @@
 
 // VENC Configuration
 #define OMV_VENC_ENABLE                     (1)
+#define OMV_VENC_VC8000_JPEG_ENABLE         (1)
 
 #define OMV_OV7725_ENABLE                   (1)
 #define OMV_OV7725_PLL_CONFIG               (0x41) // x4

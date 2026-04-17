@@ -92,6 +92,7 @@
 #define PS5520_L_TARGET         (80)
 #define PS5520_L_AGC_DIFF_MIN   (35)
 #define PS5520_L_AGC_DIFF_DIV   (10)
+#define PS5520_L_AGC_MAX_STEP   (4) // fast-path gain step; each idx ~= 6% gain change
 #define PS5520_L_AEC_ROOM_DIV   (10)
 #define PS5520_L_AEC_DIFF_MUL   (10)
 #define PS5520_L_AEC_MAX_STEP   (50)
@@ -1596,7 +1597,11 @@ static int update_agc_aec(omv_csi_t *csi, int luminance) {
 
         } else if (ps5520->enable_agc) {
             int32_t gain_step = diff / PS5520_L_AGC_DIFF_DIV;
-            gain_step = IM_CLAMP(gain_step, -1, 1);
+            // Fast path: allow larger steps when far from target; fine path: +-1
+            // near target to avoid gain hunting. Each idx step ~= 6% gain change,
+            // so PS5520_L_AGC_MAX_STEP=4 gives ~=25% max change per frame.
+            int32_t max_gain_step = (abs(diff) >= PS5520_L_FAST_THRESH) ? PS5520_L_AGC_MAX_STEP : 1;
+            gain_step = IM_CLAMP(gain_step, -max_gain_step, max_gain_step);
             ps5520->agc_gain += gain_step;
             ps5520->agc_gain = IM_CLAMP(ps5520->agc_gain, PS5520_MIN_GAIN_IDX, ps5520->agc_gain_ceiling);
 

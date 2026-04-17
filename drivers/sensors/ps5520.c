@@ -61,6 +61,11 @@
 #define CMD_NP                  (0xAB)
 #define R_ISP_TESTMODE          (0x92)
 #define SENSOR_UPDATE           (0x09)
+// Bank #6
+#define BANK_LTM                (0x06)
+#define CMD_LTM                 (0x9A)
+#define CMD_LTM_UPD             (0xF1)
+#define LTM_UPD_EN              (0x01)
 
 #define PIX_CLK                 (160000000L)
 
@@ -702,6 +707,28 @@ static int set_vflip(omv_csi_t *csi, int enable) {
     return ret;
 }
 
+// LTM brightness/contrast lookup table indexed by analog gain.
+// Source: PS5520 Sensor Control Guide v1.61, Section 3.2.
+// Key is AnalogGain*1024 (= PS5520_GAIN(idx)*64); value is CMD_LTM (Bank6 reg 0x9A)
+// [7:4]=LTM_DeHaze, [3:0]=LTM_brightness. Lower values at high gain suppress
+// noise amplification by LTM.
+static const struct {
+    uint32_t gain_x1024;
+    uint8_t ltm_val;
+} ps5520_ltm_tbl[] = {
+    { 1024,  0x68 }, // 1x:    contrast=6, brightness=8
+    { 8192,  0x67 }, // 8x:    contrast=6, brightness=7
+    { 12288, 0x66 }, // 12x:   contrast=6, brightness=6
+    { 14336, 0x65 }, // 14x:   contrast=6, brightness=5
+    { 16384, 0x55 }, // 16x:   contrast=5, brightness=5
+    { 22528, 0x54 }, // 22x:   contrast=5, brightness=4
+    { 24576, 0x44 }, // 24x:   contrast=4, brightness=4
+    { 27648, 0x43 }, // 27x:   contrast=4, brightness=3
+    { 29448, 0x33 }, // 28.75x contrast=3, brightness=3
+    { 31448, 0x32 }, // 30.71x contrast=3, brightness=2
+    { 32768, 0x22 }, // 32x:   contrast=2, brightness=2
+};
+
 static int update_agc_aec(omv_csi_t *csi, int luminance) {
     ps5520_state_t *ps5520 = csi->priv;
     int ret = 0;
@@ -808,6 +835,23 @@ static int update_agc_aec(omv_csi_t *csi, int luminance) {
             //ret |= omv_i2c_write_reg(csi->i2c, csi->slv_addr, REG_BANK, 1, 0x01, 1);
             ret |= omv_i2c_write_reg(csi->i2c, csi->slv_addr, CMD_GAIN_IDX, 1, ps5520->agc_gain, 1);
             ret |= omv_i2c_write_reg(csi->i2c, csi->slv_addr, SENSOR_UPDATE, 1, 0x01, 1);
+
+            // Dynamically adjust LTM brightness/contrast based on current analog gain.
+            // At high gain the LTM must pull back to avoid amplifying noise.
+            uint32_t gain_x1024 = (uint32_t) PS5520_GAIN(ps5520->agc_gain) * 64;
+            uint8_t ltm_val = ps5520_ltm_tbl[0].ltm_val;
+            for (int i = 1; i < (int) (sizeof(ps5520_ltm_tbl) / sizeof(ps5520_ltm_tbl[0])); i++) {
+                if (gain_x1024 >= ps5520_ltm_tbl[i].gain_x1024) {
+                    ltm_val = ps5520_ltm_tbl[i].ltm_val;
+                } else {
+                    break;
+                }
+            }
+
+            ret |= omv_i2c_write_reg(csi->i2c, csi->slv_addr, REG_BANK, 1, BANK_LTM, 1);
+            ret |= omv_i2c_write_reg(csi->i2c, csi->slv_addr, CMD_LTM, 1, ltm_val, 1);
+            ret |= omv_i2c_write_reg(csi->i2c, csi->slv_addr, CMD_LTM_UPD, 1, LTM_UPD_EN, 1);
+            ret |= omv_i2c_write_reg(csi->i2c, csi->slv_addr, REG_BANK, 1, 0x01, 1);
         }
     }
 

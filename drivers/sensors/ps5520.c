@@ -90,11 +90,12 @@
 #define PS5520_DEF_EXP_CEILING  (VTS_5M_30 - 3)
 
 #define PS5520_L_TARGET         (80)
-#define PS5520_L_AGC_DIFF_MIN   (4)
+#define PS5520_L_AGC_DIFF_MIN   (35)
 #define PS5520_L_AGC_DIFF_DIV   (10)
 #define PS5520_L_AEC_ROOM_DIV   (10)
 #define PS5520_L_AEC_DIFF_MUL   (10)
 #define PS5520_L_AEC_MAX_STEP   (50)
+#define PS5520_L_FAST_THRESH    (60) // |diff| above this uses geometric convergence
 
 typedef struct ps5520_state {
     bool enable_agc;
@@ -1527,15 +1528,25 @@ static int update_agc_aec(omv_csi_t *csi, int luminance) {
             uint8_t np;
             bool flg_stall = 0;
             int32_t exposure_line;
+            int32_t step;
 
-            // Continuous step scaling: max_step is proportional to how
-            // far the current luminance is from either saturation extreme
-            // (0 or 255). This avoids step-size discontinuities that cause
-            // oscillation at zone boundaries.
-            int32_t headroom = IM_MIN(luminance, 255 - luminance);
-            int32_t max_step = IM_MAX(1, IM_MIN(PS5520_L_AEC_MAX_STEP, headroom / PS5520_L_AEC_ROOM_DIV));
-            int32_t step = diff * PS5520_L_AEC_DIFF_MUL;
-            step = IM_CLAMP(step, -max_step, max_step);
+            if (abs(diff) >= PS5520_L_FAST_THRESH) {
+                // Geometric convergence: luminance ≈ k*exposure, so the ideal
+                // exposure is current_exp * L_TARGET / luminance. Step halfway
+                // there each frame to halve the error geometrically — converges
+                // in ~5 frames vs. hundreds with linear steps.
+                int32_t target_exp = (int32_t) ((int64_t) ps5520->aec_exposure * PS5520_L_TARGET / luminance);
+                target_exp = IM_CLAMP(target_exp, PS5520_MIN_INT, ps5520->aec_exposure_ceiling);
+                step = (target_exp - ps5520->aec_exposure) / 2;
+                if (step == 0) {
+                    step = (target_exp >= ps5520->aec_exposure) ? 1 : -1;
+                }
+            } else {
+                // Fine-tuning near target: proportional step, small enough to avoid oscillation.
+                int32_t max_step = IM_MAX(1, IM_MIN(PS5520_L_AEC_MAX_STEP, abs(diff) / PS5520_L_AEC_ROOM_DIV));
+                step = IM_CLAMP(diff * PS5520_L_AEC_DIFF_MUL, -max_step, max_step);
+            }
+
             ps5520->aec_exposure += step;
             ps5520->aec_exposure = IM_CLAMP(ps5520->aec_exposure, PS5520_MIN_INT, ps5520->aec_exposure_ceiling);
 

@@ -410,6 +410,7 @@ typedef struct _omv_csi {
     int (*snapshot) (omv_csi_t *csi, image_t *image, uint32_t flags);
     int (*post_process) (omv_csi_t *csi, image_t *image, uint32_t flags);
     int (*isp_reset) (omv_csi_t *csi);
+    int (*isp_set_src) (omv_csi_t *csi, uint32_t src_w, uint32_t src_h);
 } omv_csi_t;
 
 // CSI array

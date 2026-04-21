@@ -135,6 +135,16 @@ int stm_csi_isp_reset(omv_csi_t *csi) {
     return 0;
 }
 
+static int stm_csi_set_src(omv_csi_t *csi, uint32_t src_w, uint32_t src_h) {
+    #if USE_DCMIPP
+    if (csi->mipi_if) {
+        csi->scaler_src_w = src_w;
+        csi->scaler_src_h = src_h;
+    }
+    #endif // USE_DCMIPP
+    return 0;
+}
+
 static int stm_csi_config(omv_csi_t *csi, omv_csi_config_t config) {
     if (config == OMV_CSI_CONFIG_INIT) {
         if (!csi->mipi_if) {
@@ -557,15 +567,7 @@ static int stm_csi_snapshot(omv_csi_t *csi, image_t *image, uint32_t flags) {
                 return OMV_CSI_ERROR_INVALID_FRAMESIZE;
             }
 
-            // Configure crop
-            DCMIPP_CropConfTypeDef ccfg = {
-                .HStart = fb->x,
-                .VStart = fb->y,
-                .HSize = fb->u,
-                .VSize = fb->v,
-            };
-            if (HAL_DCMIPP_PIPE_SetCropConfig(&csi->dcmipp, DCMIPP_PIPE, &ccfg) != HAL_OK ||
-                HAL_DCMIPP_PIPE_EnableCrop(&csi->dcmipp, DCMIPP_PIPE) != HAL_OK) {
+            if (stm_isp_set_scaler(csi, DCMIPP_PIPE)) {
                 return OMV_CSI_ERROR_CSI_INIT_FAILED;
             }
 
@@ -765,7 +767,7 @@ static int stm_csi_snapshot(omv_csi_t *csi, image_t *image, uint32_t flags) {
 
     #if USE_DCMIPP
     if (csi->raw_output) {
-        float luminance = stm_isp_update_awb(csi, DCMIPP_PIPE, fb->u * fb->v);
+        float luminance = stm_isp_update_awb(csi, DCMIPP_PIPE);
         if (csi->ioctl) {
             omv_csi_ioctl(csi, OMV_CSI_IOCTL_UPDATE_AGC_AEC, fast_floorf(luminance));
         }
@@ -785,6 +787,7 @@ int omv_csi_ops_init(omv_csi_t *csi) {
     csi->shutdown = stm_csi_shutdown;
     csi->snapshot = stm_csi_snapshot;
     csi->isp_reset = stm_csi_isp_reset;
+    csi->isp_set_src = stm_csi_set_src;
 
     // Set CSI clock ops.
     csi->clk->freq = OMV_CSI_CLK_FREQUENCY;

@@ -12,8 +12,14 @@ def unittest(data_path, temp_path):
 
     blobs = img.find_blobs(thresholds, pixels_threshold=200, area_threshold=200)
 
+    b0 = blobs[0]
+    b1 = blobs[1]
+    b2 = blobs[2]
     return (
-        [int(x) for x in blobs[0][0:-5]] == [61, 21, 49, 41, 1556, 83, 41]
-        and [int(x) for x in blobs[1][0:-5]] == [22, 20, 39, 45, 1294, 40, 42]
-        and [int(x) for x in blobs[2][0:-5]] == [105, 20, 36, 41, 1004, 124, 38]
+        b0.x == 61 and b0.y == 21 and b0.w == 49 and b0.h == 41
+        and b0.pixels == 1556 and int(b0.cxf) == 83 and int(b0.cyf) == 41
+        and b1.x == 22 and b1.y == 20 and b1.w == 39 and b1.h == 45
+        and b1.pixels == 1294 and int(b1.cxf) == 40 and int(b1.cyf) == 42
+        and b2.x == 105 and b2.y == 20 and b2.w == 36 and b2.h == 41
+        and b2.pixels == 1004 and int(b2.cxf) == 124 and int(b2.cyf) == 38
     )

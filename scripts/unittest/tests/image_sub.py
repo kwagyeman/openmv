@@ -20,7 +20,7 @@ def unittest(data_path, temp_path):
 
     # Verify result is 100
     stats = img1.get_statistics()
-    if stats.mean() != 100 or stats.min() != 100 or stats.max() != 100:
+    if stats.mean != 100 or stats.min != 100 or stats.max != 100:
         return False
 
     # Test underflow protection at 0
@@ -36,7 +36,7 @@ def unittest(data_path, temp_path):
 
     # Should clamp at 0
     stats2 = img3.get_statistics()
-    if stats2.min() != 0:
+    if stats2.min != 0:
         return False
 
     return True

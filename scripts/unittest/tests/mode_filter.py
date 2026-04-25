@@ -18,7 +18,7 @@ def unittest(data_path, temp_path):
 
     # Verify image is modified
     stats = img.get_statistics()
-    if stats.mean() < 50 or stats.mean() > 250:
+    if stats.mean < 50 or stats.mean > 250:
         return False
 
     return True

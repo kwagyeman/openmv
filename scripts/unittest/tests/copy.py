@@ -17,7 +17,7 @@ def unittest(data_path, temp_path):
         return False
 
     stats = img_copy.get_statistics()
-    if stats.mean() != 100:
+    if stats.mean != 100:
         return False
 
     # Modify original image
@@ -27,12 +27,12 @@ def unittest(data_path, temp_path):
 
     # Verify copy is independent (still has value 100)
     stats_copy = img_copy.get_statistics()
-    if stats_copy.mean() != 100:
+    if stats_copy.mean != 100:
         return False
 
     # Verify original changed to 200
     stats_orig = img.get_statistics()
-    if stats_orig.mean() != 200:
+    if stats_orig.mean != 200:
         return False
 
     return True

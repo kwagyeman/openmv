@@ -19,7 +19,7 @@ def unittest(data_path, temp_path):
     stats_filtered = img.get_statistics()
 
     # Filtered image should have different stats
-    if stats_filtered.mean() == stats_orig.mean():
+    if stats_filtered.mean == stats_orig.mean:
         return False
 
     return True

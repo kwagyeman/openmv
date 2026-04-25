@@ -22,7 +22,7 @@ def unittest(data_path, temp_path):
         return False
 
     # Line at 30 degrees from horizontal should have theta around 120 degrees
-    theta = line.theta()
+    theta = line.theta
 
     # Allow generous tolerance since exact angle detection varies
     if abs(theta - 120) > 30:

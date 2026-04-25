@@ -20,7 +20,7 @@ def unittest(data_path, temp_path):
 
     # Verify result is 150
     stats = img1.get_statistics()
-    if stats.mean() != 150 or stats.min() != 150 or stats.max() != 150:
+    if stats.mean != 150 or stats.min != 150 or stats.max != 150:
         return False
 
     # Test saturation at 255
@@ -36,7 +36,7 @@ def unittest(data_path, temp_path):
 
     # Should saturate at 255
     stats2 = img3.get_statistics()
-    if stats2.max() != 255:
+    if stats2.max != 255:
         return False
 
     return True

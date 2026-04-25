@@ -22,7 +22,7 @@ def unittest(data_path, temp_path):
     stats_filtered = img.get_statistics()
 
     # Check that contrast is still high (edges preserved)
-    if stats_filtered.max() - stats_filtered.min() < 100:
+    if stats_filtered.max - stats_filtered.min < 100:
         return False
 
     return True

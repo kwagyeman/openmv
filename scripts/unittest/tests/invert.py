@@ -29,7 +29,7 @@ def unittest(data_path, temp_path):
 
     stats = img2.get_statistics()
     # 255 - 200 = 55
-    if stats.mean() != 55 or stats.min() != 55 or stats.max() != 55:
+    if stats.mean != 55 or stats.min != 55 or stats.max != 55:
         return False
 
     return True

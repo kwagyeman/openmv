@@ -18,7 +18,7 @@ def unittest(data_path, temp_path):
 
     # Mean should remain approximately the same
     stats = img.get_statistics()
-    if stats.mean() < 120 or stats.mean() > 135:
+    if stats.mean < 120 or stats.mean > 135:
         return False
 
     # Test another downscale
@@ -35,7 +35,7 @@ def unittest(data_path, temp_path):
 
     # Mean should be approximately preserved
     stats2 = img2.get_statistics()
-    if stats2.mean() < 95 or stats2.mean() > 105:
+    if stats2.mean < 95 or stats2.mean > 105:
         return False
 
     return True

@@ -32,15 +32,15 @@ def unittest(data_path, temp_path):
     # For a (+5, +5) pixel shift, expect approximately (-5, +5)
 
     # Check X translation magnitude and sign
-    if abs(abs(result.x_translation()) - 5) > 0.5:
+    if abs(abs(result.x_translation) - 5) > 0.5:
         return False
 
     # Check Y translation magnitude and sign
-    if abs(abs(result.y_translation()) - 5) > 0.5:
+    if abs(abs(result.y_translation) - 5) > 0.5:
         return False
 
     # Verify we got a valid response (high confidence match)
-    if result.response() < 0.5:
+    if result.response < 0.5:
         return False
 
     return True

@@ -21,7 +21,7 @@ def unittest(data_path, temp_path):
 
     # Verify image was modified
     stats = img.get_statistics()
-    if stats.min() == 0 and stats.max() == 255:
+    if stats.min == 0 and stats.max == 255:
         # Still has contrast, good
         return True
 

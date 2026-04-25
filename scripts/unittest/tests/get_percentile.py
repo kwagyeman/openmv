@@ -20,7 +20,7 @@ def unittest(data_path, temp_path):
         return False
 
     # 50th percentile should be around 50
-    if abs(percentile.value() - 50) > 20:
+    if abs(percentile.value - 50) > 20:
         return False
 
     return True

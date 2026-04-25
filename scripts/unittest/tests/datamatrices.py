@@ -3,15 +3,18 @@ def unittest(data_path, temp_path):
 
     img = image.Image(data_path + "/datamatrix.pgm", copy_to_fb=True)
     matrices = img.find_datamatrices()
-    return len(matrices) == 1 and matrices[0][0:] == (
-        34,
-        15,
-        90,
-        89,
-        "https://openmv.io/",
-        0.0,
-        18,
-        18,
-        18,
-        0,
+    if len(matrices) != 1:
+        return False
+    m = matrices[0]
+    return (
+        m.x == 34
+        and m.y == 15
+        and m.w == 90
+        and m.h == 89
+        and m.payload == "https://openmv.io/"
+        and m.rotation == 0.0
+        and m.rows == 18
+        and m.columns == 18
+        and m.capacity == 18
+        and m.padding == 0
     )

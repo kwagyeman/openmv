@@ -16,7 +16,7 @@ def unittest(data_path, temp_path):
 
     # Result should be |150 - 100| = 50
     stats = img1.get_statistics()
-    if abs(stats.mean() - 50) > 5:
+    if abs(stats.mean - 50) > 5:
         return False
 
     return True

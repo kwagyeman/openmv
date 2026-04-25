@@ -21,7 +21,7 @@ def unittest(data_path, temp_path):
 
     # Verify we have both black and white pixels
     stats = img_gray.get_statistics()
-    if stats.min() != 0 or stats.max() != 255:
+    if stats.min != 0 or stats.max != 255:
         return False
 
     return True

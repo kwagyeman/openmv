@@ -26,7 +26,7 @@ def unittest(data_path, temp_path):
 
     # Verify all pixels are 50 (top-left quadrant value)
     stats = img1.get_statistics()
-    if stats.mean() != 50 or stats.min() != 50 or stats.max() != 50:
+    if stats.mean != 50 or stats.min != 50 or stats.max != 50:
         return False
 
     # Crop bottom-right quadrant from original (need fresh copy)
@@ -37,7 +37,7 @@ def unittest(data_path, temp_path):
         return False
 
     stats2 = img2.get_statistics()
-    if stats2.mean() != 200:
+    if stats2.mean != 200:
         return False
 
     return True

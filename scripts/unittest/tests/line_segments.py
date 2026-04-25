@@ -10,17 +10,13 @@ def unittest(data_path, temp_path):
     # Collect detected angles into 15-degree buckets and track max length per bucket.
     buckets = {}
     for l in lines:
-        t = l[0:]
-        if len(t) != 8:
+        if l.length <= 0 or l.magnitude <= 0:
             return False
-        x1, y1, x2, y2, length, magnitude, theta, rho = t
-        if length <= 0 or magnitude <= 0:
+        if l.theta < 0 or l.theta >= 180:
             return False
-        if theta < 0 or theta >= 180:
-            return False
-        b = theta // 15
-        if b not in buckets or length > buckets[b]:
-            buckets[b] = length
+        b = l.theta // 15
+        if b not in buckets or l.length > buckets[b]:
+            buckets[b] = l.length
 
     # The test image has lines at many angles. We should detect at least
     # 6 distinct 15-degree angle buckets.

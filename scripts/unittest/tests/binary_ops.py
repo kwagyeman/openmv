@@ -14,7 +14,7 @@ def unittest(data_path, temp_path):
     img1.b_and(img2)
     # 240 & 60 = 0b11110000 & 0b00111100 = 0b00110000 = 48
     stats = img1.get_statistics()
-    if stats.mean() != 48:
+    if stats.mean != 48:
         return False
 
     # Test OR operation
@@ -29,7 +29,7 @@ def unittest(data_path, temp_path):
     img3.b_or(img4)
     # 240 | 15 = 0b11110000 | 0b00001111 = 0b11111111 = 255
     stats2 = img3.get_statistics()
-    if stats2.mean() != 255:
+    if stats2.mean != 255:
         return False
 
     # Test XOR operation
@@ -44,7 +44,7 @@ def unittest(data_path, temp_path):
     img5.b_xor(img6)
     # 255 ^ 170 = 0b11111111 ^ 0b10101010 = 0b01010101 = 85
     stats3 = img5.get_statistics()
-    if stats3.mean() != 85:
+    if stats3.mean != 85:
         return False
 
     return True

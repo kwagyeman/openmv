@@ -23,7 +23,7 @@ def unittest(data_path, temp_path):
         return False
 
     # Threshold should be between the two peaks (50 and 200)
-    if threshold.value() < 50 or threshold.value() > 200:
+    if threshold.value < 50 or threshold.value > 200:
         return False
 
     return True

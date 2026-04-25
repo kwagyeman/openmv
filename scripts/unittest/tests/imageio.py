@@ -49,15 +49,15 @@ def unittest(data_path, temp_path):
         return False
 
     stats1 = img1.difference(read_img1).get_statistics()
-    if stats1.max() != 0 or stats1.min() != 0:
+    if stats1.max != 0 or stats1.min != 0:
         return False
 
     stats2 = img2.difference(read_img2).get_statistics()
-    if stats2.max() != 0 or stats2.min() != 0:
+    if stats2.max != 0 or stats2.min != 0:
         return False
 
     stats3 = img3.difference(read_img3).get_statistics()
-    if stats3.max() != 0 or stats3.min() != 0:
+    if stats3.max != 0 or stats3.min != 0:
         return False
 
     # Test 2: Memory stream with seek
@@ -79,15 +79,15 @@ def unittest(data_path, temp_path):
         return False
 
     stats1 = img1.difference(mem_img1).get_statistics()
-    if stats1.max() != 0 or stats1.min() != 0:
+    if stats1.max != 0 or stats1.min != 0:
         return False
 
     stats2 = img2.difference(mem_img2).get_statistics()
-    if stats2.max() != 0 or stats2.min() != 0:
+    if stats2.max != 0 or stats2.min != 0:
         return False
 
     stats3 = img3.difference(mem_img3).get_statistics()
-    if stats3.max() != 0 or stats3.min() != 0:
+    if stats3.max != 0 or stats3.min != 0:
         return False
 
     # Test 3: Seek to specific frame
@@ -96,7 +96,7 @@ def unittest(data_path, temp_path):
     mem_img2_direct = mem_stream.read(copy_to_fb=False)
 
     stats2 = img2.difference(mem_img2_direct).get_statistics()
-    if stats2.max() != 0 or stats2.min() != 0:
+    if stats2.max != 0 or stats2.min != 0:
         return False
 
     # Test 4: Grayscale images
@@ -127,11 +127,11 @@ def unittest(data_path, temp_path):
         return False
 
     stats_g1 = gray1.difference(read_gray1).get_statistics()
-    if stats_g1.max() != 0 or stats_g1.min() != 0:
+    if stats_g1.max != 0 or stats_g1.min != 0:
         return False
 
     stats_g2 = gray2.difference(read_gray2).get_statistics()
-    if stats_g2.max() != 0 or stats_g2.min() != 0:
+    if stats_g2.max != 0 or stats_g2.min != 0:
         return False
 
     return True

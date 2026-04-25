@@ -31,21 +31,21 @@ def unittest(data_path, temp_path):
 
     # Get variance before filtering
     stats_before = img.get_statistics()
-    stdev_before = stats_before.stdev()
+    stdev_before = stats_before.stdev
 
     # Apply median filter (kernel size 1 = 3x3)
     img.median(1)
 
     # Get variance after filtering
     stats_after = img.get_statistics()
-    stdev_after = stats_after.stdev()
+    stdev_after = stats_after.stdev
 
     # Median filter should reduce variance (removes noise)
     if stdev_after >= stdev_before:
         return False
 
     # Mean should remain close to 128
-    if stats_after.mean() < 125 or stats_after.mean() > 131:
+    if stats_after.mean < 125 or stats_after.mean > 131:
         return False
 
     return True

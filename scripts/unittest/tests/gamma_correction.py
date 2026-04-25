@@ -19,7 +19,7 @@ def unittest(data_path, temp_path):
     stats_corrected = img.get_statistics()
 
     # Gamma of 0.5 should darken the image
-    if stats_corrected.mean() >= stats_orig.mean():
+    if stats_corrected.mean >= stats_orig.mean:
         return False
 
     return True

@@ -12,14 +12,14 @@ def unittest(data_path, temp_path):
 
     # Get histogram before equalization
     stats_before = img.get_statistics()
-    range_before = stats_before.max() - stats_before.min()
+    range_before = stats_before.max - stats_before.min
 
     # Apply histogram equalization
     img.histeq()
 
     # Get histogram after equalization
     stats_after = img.get_statistics()
-    range_after = stats_after.max() - stats_after.min()
+    range_after = stats_after.max - stats_after.min
 
     # After histogram equalization:
     # Dynamic range should increase significantly (spread out the values)

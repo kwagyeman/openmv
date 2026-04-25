@@ -20,12 +20,12 @@ def unittest(data_path, temp_path):
     match = image.match_descriptor(kpts1, kpts2, threshold=85)
 
     return (
-        match.cx() == 143
-        and match.cy() == 108
-        and match.x() == 36
-        and match.y() == 34
-        and match.w() == 251
-        and match.h() == 141
-        and match.count() == 50
-        and match.theta() == 0
+        match.cx == 143
+        and match.cy == 108
+        and match.x == 36
+        and match.y == 34
+        and match.w == 251
+        and match.h == 141
+        and match.count == 50
+        and match.theta == 0
     )

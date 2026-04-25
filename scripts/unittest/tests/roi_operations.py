@@ -14,7 +14,7 @@ def unittest(data_path, temp_path):
     stats = img.get_statistics(roi=roi)
 
     # Verify stats are calculated
-    if stats.mean() < 0 or stats.mean() > 255:
+    if stats.mean < 0 or stats.mean > 255:
         return False
 
     # Test histogram with ROI

@@ -41,7 +41,7 @@ while True:
     # any two lines about to be merged. The default setting allows for 15 degrees.
 
     for l in img.find_line_segments(merge_distance=0, max_theta_diff=5):
-        img.draw_line(l.line(), color=(255, 0, 0))
+        img.draw_line(l.line, color=(255, 0, 0))
         # print(l)
 
     print("FPS %f" % clock.fps())

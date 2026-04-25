@@ -44,10 +44,10 @@ while True:
         [thresholds], pixels_threshold=100, area_threshold=100, merge=True
     ):
         # Next we look for a tag in an ROI that's bigger than the blob.
-        w = min(max(int(blob.w() * 1.2), 10), 160)  # Not too small, not too big.
-        h = min(max(int(blob.h() * 1.2), 10), 160)  # Not too small, not too big.
-        x = min(max(int(blob.x() + (blob.w() / 4) - (w * 0.1)), 0), img.width() - 1)
-        y = min(max(int(blob.y() + (blob.h() / 4) - (h * 0.1)), 0), img.height() - 1)
+        w = min(max(int(blob.w * 1.2), 10), 160)  # Not too small, not too big.
+        h = min(max(int(blob.h * 1.2), 10), 160)  # Not too small, not too big.
+        x = min(max(int(blob.x + (blob.w / 4) - (w * 0.1)), 0), img.width() - 1)
+        y = min(max(int(blob.y + (blob.h / 4) - (h * 0.1)), 0), img.height() - 1)
 
         box_list.append((x, y, w, h))  # We'll draw these later.
 

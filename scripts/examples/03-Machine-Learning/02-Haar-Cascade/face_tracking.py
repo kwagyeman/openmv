@@ -73,11 +73,11 @@ while True:
     if kpts2:
         # Match the first set of keypoints with the second one
         c = image.match_descriptor(kpts1, kpts2, threshold=85)
-        match = c[6]  # C[6] contains the number of matches.
+        match = c.count
         if match > 5:
-            img.draw_rectangle(c[2:6])
-            img.draw_cross((c[0], c[1]), size=10)
-            print(kpts2, "matched:%d dt:%d" % (match, c[7]))
+            img.draw_rectangle(c.rect)
+            img.draw_cross((c.cx, c.cy), size=10)
+            print(kpts2, "matched:%d dt:%d" % (match, c.theta))
 
     # Draw FPS
     img.draw_string((0, 0), "FPS:%.2f" % (clock.fps()))

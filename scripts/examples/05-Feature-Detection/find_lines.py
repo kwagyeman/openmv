@@ -54,8 +54,8 @@ while True:
     # theta and rho value differences are less than the margins then they are merged.
 
     for l in img.find_lines(threshold=1000, theta_margin=25, rho_margin=25):
-        if (min_degree <= l.theta()) and (l.theta() <= max_degree):
-            img.draw_line(l.line(), color=(255, 0, 0))
+        if (min_degree <= l.theta) and (l.theta <= max_degree):
+            img.draw_line(l.line, color=(255, 0, 0))
             # print(l)
 
     print("FPS %f" % clock.fps())

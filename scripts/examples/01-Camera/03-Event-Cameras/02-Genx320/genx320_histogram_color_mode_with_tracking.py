@@ -32,7 +32,7 @@ while True:
     )
 
     for blob in blobs:
-        img.draw_rectangle(blob.rect(), color=(255, 0, 0))
-        img.draw_cross((blob.cx(), blob.cy()), color=(0, 255, 0))
+        img.draw_rectangle(blob.rect, color=(255, 0, 0))
+        img.draw_cross((blob.cx, blob.cy), color=(0, 255, 0))
 
     print(clock.fps())

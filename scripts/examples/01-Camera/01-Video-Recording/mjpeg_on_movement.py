@@ -45,10 +45,10 @@ while True:
         img = csi0.snapshot()
         img.difference("temp/bg.bmp")
         stats = img.statistics()
-        # Stats 5 is the max of the lighting color channel. The below code
-        # triggers when the lighting max for the whole image goes above 20.
-        # The lighting difference maximum should be zero normally.
-        if stats[5] > 20:
+        # The below code triggers when the max of the lighting color channel
+        # for the whole image goes above 20. The lighting difference maximum
+        # should be zero normally.
+        if stats.l_max > 20:
             diff -= 1
 
     led.on()

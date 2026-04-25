@@ -97,9 +97,9 @@ while True:
     blob_stats = []
     for b in blobs:
         blob_stats.append(
-            (b.rect(), map_g_to_temp(fir_img.get_statistics(
-                thresholds=threshold_list, roi=b.rect()
-            ).mean()))
+            (b.rect, map_g_to_temp(fir_img.get_statistics(
+                thresholds=threshold_list, roi=b.rect
+            ).mean))
         )
 
     x_scale = img.width() / fir_img.width()
@@ -111,11 +111,11 @@ while True:
 
     # Draw stuff on the colored image
     for b in blobs:
-        img.draw_rectangle((int(b.rect()[0] * x_scale),
-                            int(b.rect()[1] * y_scale),
-                            int(b.rect()[2] * x_scale),
-                            int(b.rect()[3] * y_scale)))
-        img.draw_cross((int(b.cx() * x_scale), int(b.cy() * y_scale)))
+        img.draw_rectangle((int(b.rect[0] * x_scale),
+                            int(b.rect[1] * y_scale),
+                            int(b.rect[2] * x_scale),
+                            int(b.rect[3] * y_scale)))
+        img.draw_cross((int(b.cx * x_scale), int(b.cy * y_scale)))
 
     for blob_stat in blob_stats:
         img.draw_string((int((blob_stat[0][0] * x_scale) + 4),

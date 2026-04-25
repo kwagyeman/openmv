@@ -148,17 +148,17 @@ while True:
     img = csi0.snapshot()
     tags = sorted(
         img.find_apriltags(fx=f_x, fy=f_y, cx=c_x, cy=c_y),
-        key=lambda x: x.w() * x.h(),
+        key=lambda x: x.w * x.h,
         reverse=True,
     )
     target_found = False
-    if tags and (tags[0].id() in valid_tag_ids):
+    if tags and (tags[0].id in valid_tag_ids):
         target_found = True
-        tag_size = valid_tag_ids[tags[0].id()]
+        tag_size = valid_tag_ids[tags[0].id]
         dist_mm = math.sqrt(
-            translation_to_mm(tags[0].x_translation(), tag_size) ** 2
-            + translation_to_mm(tags[0].y_translation(), tag_size) ** 2
-            + translation_to_mm(tags[0].z_translation(), tag_size) ** 2
+            translation_to_mm(tags[0].x_translation, tag_size) ** 2
+            + translation_to_mm(tags[0].y_translation, tag_size) ** 2
+            + translation_to_mm(tags[0].z_translation, tag_size) ** 2
         )
         send_landing_target_packet(tags[0], dist_mm, img.width(), img.height())
         img.draw_rectangle(tags[0].rect)

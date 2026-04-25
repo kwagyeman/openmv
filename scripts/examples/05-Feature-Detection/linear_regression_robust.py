@@ -46,9 +46,9 @@ while True:
     )
 
     if line:
-        img.draw_line(line.line(), color=127)
+        img.draw_line(line.line, color=127)
     print(
-        "FPS %f, mag = %s" % (clock.fps(), str(line.magnitude()) if (line) else "N/A")
+        "FPS %f, mag = %s" % (clock.fps(), str(line.magnitude) if (line) else "N/A")
     )
 
 # About negative rho values:

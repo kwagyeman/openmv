@@ -173,7 +173,6 @@ static MP_DEFINE_CONST_OBJ_TYPE(
 
 #if defined(IMLIB_ENABLE_DESCRIPTOR) && defined(IMLIB_ENABLE_FIND_KEYPOINTS)
 
-#define kptmatch_obj_size    9
 typedef struct _py_kptmatch_obj_t {
     mp_obj_base_t base;
     mp_obj_t cx, cy;
@@ -184,115 +183,60 @@ typedef struct _py_kptmatch_obj_t {
 } py_kptmatch_obj_t;
 
 static void py_kptmatch_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
-    py_kptmatch_obj_t *self = self_in;
+    py_kptmatch_obj_t *self = MP_OBJ_TO_PTR(self_in);
     mp_printf(print, "{\"cx\":%d, \"cy\":%d, \"x\":%d, \"y\":%d, \"w\":%d, \"h\":%d, \"count\":%d, \"theta\":%d}",
               mp_obj_get_int(self->cx), mp_obj_get_int(self->cy), mp_obj_get_int(self->x), mp_obj_get_int(self->y),
               mp_obj_get_int(self->w),  mp_obj_get_int(self->h),  mp_obj_get_int(self->count), mp_obj_get_int(self->theta));
 }
 
-static mp_obj_t py_kptmatch_subscr(mp_obj_t self_in, mp_obj_t index, mp_obj_t value) {
-    if (value == MP_OBJ_SENTINEL) {
-        // load
-        py_kptmatch_obj_t *self = self_in;
-        if (MP_OBJ_IS_TYPE(index, &mp_type_slice)) {
-            mp_bound_slice_t slice;
-            if (!mp_seq_get_fast_slice_indexes(kptmatch_obj_size, index, &slice)) {
-                mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("only slices with step=1 (aka None) are supported"));
-            }
-            mp_obj_tuple_t *result = mp_obj_new_tuple(slice.stop - slice.start, NULL);
-            mp_seq_copy(result->items, &(self->x) + slice.start, result->len, mp_obj_t);
-            return result;
-        }
-        switch (mp_get_index(self->base.type, kptmatch_obj_size, index, false)) {
-            case 0: return self->cx;
-            case 1: return self->cy;
-            case 2: return self->x;
-            case 3: return self->y;
-            case 4: return self->w;
-            case 5: return self->h;
-            case 6: return self->count;
-            case 7: return self->theta;
-            case 8: return self->match;
+static void py_kptmatch_attr(mp_obj_t self_in, qstr attr, mp_obj_t *dest) {
+    py_kptmatch_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    if (dest[0] == MP_OBJ_NULL) {
+        switch (attr) {
+            case MP_QSTR_cx:
+                dest[0] = self->cx;
+                break;
+            case MP_QSTR_cy:
+                dest[0] = self->cy;
+                break;
+            case MP_QSTR_x:
+                dest[0] = self->x;
+                break;
+            case MP_QSTR_y:
+                dest[0] = self->y;
+                break;
+            case MP_QSTR_w:
+                dest[0] = self->w;
+                break;
+            case MP_QSTR_h:
+                dest[0] = self->h;
+                break;
+            case MP_QSTR_count:
+                dest[0] = self->count;
+                break;
+            case MP_QSTR_theta:
+                dest[0] = self->theta;
+                break;
+            case MP_QSTR_match:
+                dest[0] = self->match;
+                break;
+            case MP_QSTR_rect:
+                dest[0] = mp_obj_new_tuple(4, (mp_obj_t []) { self->x, self->y, self->w, self->h });
+                break;
+            default:
+                // Continue lookup in locals_dict.
+                dest[1] = MP_OBJ_SENTINEL;
+                break;
         }
     }
-    return MP_OBJ_NULL; // op not supported
 }
-
-mp_obj_t py_kptmatch_cx(mp_obj_t self_in) {
-    return ((py_kptmatch_obj_t *) self_in)->cx;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_kptmatch_cx_obj, py_kptmatch_cx);
-
-mp_obj_t py_kptmatch_cy(mp_obj_t self_in) {
-    return ((py_kptmatch_obj_t *) self_in)->cy;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_kptmatch_cy_obj, py_kptmatch_cy);
-
-mp_obj_t py_kptmatch_x(mp_obj_t self_in) {
-    return ((py_kptmatch_obj_t *) self_in)->x;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_kptmatch_x_obj, py_kptmatch_x);
-
-mp_obj_t py_kptmatch_y(mp_obj_t self_in) {
-    return ((py_kptmatch_obj_t *) self_in)->y;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_kptmatch_y_obj, py_kptmatch_y);
-
-mp_obj_t py_kptmatch_w(mp_obj_t self_in) {
-    return ((py_kptmatch_obj_t *) self_in)->w;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_kptmatch_w_obj, py_kptmatch_w);
-
-mp_obj_t py_kptmatch_h(mp_obj_t self_in) {
-    return ((py_kptmatch_obj_t *) self_in)->h;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_kptmatch_h_obj, py_kptmatch_h);
-
-mp_obj_t py_kptmatch_count(mp_obj_t self_in) {
-    return ((py_kptmatch_obj_t *) self_in)->count;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_kptmatch_count_obj, py_kptmatch_count);
-
-mp_obj_t py_kptmatch_theta(mp_obj_t self_in) {
-    return ((py_kptmatch_obj_t *) self_in)->theta;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_kptmatch_theta_obj, py_kptmatch_theta);
-
-mp_obj_t py_kptmatch_match(mp_obj_t self_in) {
-    return ((py_kptmatch_obj_t *) self_in)->match;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_kptmatch_match_obj, py_kptmatch_match);
-
-mp_obj_t py_kptmatch_rect(mp_obj_t self_in) {
-    return mp_obj_new_tuple(4, (mp_obj_t []) {((py_kptmatch_obj_t *) self_in)->x,
-                                              ((py_kptmatch_obj_t *) self_in)->y,
-                                              ((py_kptmatch_obj_t *) self_in)->w,
-                                              ((py_kptmatch_obj_t *) self_in)->h});
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_kptmatch_rect_obj,  py_kptmatch_rect);
-
-static const mp_rom_map_elem_t py_kptmatch_locals_dict_table[] = {
-    { MP_ROM_QSTR(MP_QSTR_cx),      MP_ROM_PTR(&py_kptmatch_cx_obj)      },
-    { MP_ROM_QSTR(MP_QSTR_cy),      MP_ROM_PTR(&py_kptmatch_cy_obj)      },
-    { MP_ROM_QSTR(MP_QSTR_x),       MP_ROM_PTR(&py_kptmatch_x_obj)       },
-    { MP_ROM_QSTR(MP_QSTR_y),       MP_ROM_PTR(&py_kptmatch_y_obj)       },
-    { MP_ROM_QSTR(MP_QSTR_w),       MP_ROM_PTR(&py_kptmatch_w_obj)       },
-    { MP_ROM_QSTR(MP_QSTR_h),       MP_ROM_PTR(&py_kptmatch_h_obj)       },
-    { MP_ROM_QSTR(MP_QSTR_count),   MP_ROM_PTR(&py_kptmatch_count_obj)   },
-    { MP_ROM_QSTR(MP_QSTR_theta),   MP_ROM_PTR(&py_kptmatch_theta_obj)   },
-    { MP_ROM_QSTR(MP_QSTR_match),   MP_ROM_PTR(&py_kptmatch_match_obj)   },
-    { MP_ROM_QSTR(MP_QSTR_rect),    MP_ROM_PTR(&py_kptmatch_rect_obj)    }
-};
-
-static MP_DEFINE_CONST_DICT(py_kptmatch_locals_dict, py_kptmatch_locals_dict_table);
 
 static MP_DEFINE_CONST_OBJ_TYPE(
     py_kptmatch_type,
     MP_QSTR_kptmatch,
     MP_TYPE_FLAG_NONE,
-    print, py_kptmatch_print,
-    subscr, py_kptmatch_subscr,
-    locals_dict, &py_kptmatch_locals_dict
+    attr, py_kptmatch_attr,
+    print, py_kptmatch_print
     );
 
 
@@ -2794,14 +2738,13 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(py_image_rotation_corr_obj, 1, py_image_rotati
 #endif // IMLIB_ENABLE_ROTATION_CORR
 
 // Line Object //
-#define py_line_obj_size    8
 typedef struct py_line_obj {
     mp_obj_base_t base;
     mp_obj_t x1, y1, x2, y2, length, magnitude, theta, rho;
 } py_line_obj_t;
 
 static void py_line_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
-    py_line_obj_t *self = self_in;
+    py_line_obj_t *self = MP_OBJ_TO_PTR(self_in);
     mp_printf(print,
               "{\"x1\":%d, \"y1\":%d, \"x2\":%d, \"y2\":%d, \"length\":%d, \"magnitude\":%d, \"theta\":%d, \"rho\":%d}",
               mp_obj_get_int(self->x1),
@@ -2814,102 +2757,51 @@ static void py_line_print(const mp_print_t *print, mp_obj_t self_in, mp_print_ki
               mp_obj_get_int(self->rho));
 }
 
-static mp_obj_t py_line_subscr(mp_obj_t self_in, mp_obj_t index, mp_obj_t value) {
-    if (value == MP_OBJ_SENTINEL) {
-        // load
-        py_line_obj_t *self = self_in;
-        if (MP_OBJ_IS_TYPE(index, &mp_type_slice)) {
-            mp_bound_slice_t slice;
-            if (!mp_seq_get_fast_slice_indexes(py_line_obj_size, index, &slice)) {
-                mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("only slices with step=1 (aka None) are supported"));
-            }
-            mp_obj_tuple_t *result = mp_obj_new_tuple(slice.stop - slice.start, NULL);
-            mp_seq_copy(result->items, &(self->x1) + slice.start, result->len, mp_obj_t);
-            return result;
-        }
-        switch (mp_get_index(self->base.type, py_line_obj_size, index, false)) {
-            case 0: return self->x1;
-            case 1: return self->y1;
-            case 2: return self->x2;
-            case 3: return self->y2;
-            case 4: return self->length;
-            case 5: return self->magnitude;
-            case 6: return self->theta;
-            case 7: return self->rho;
+static void py_line_attr(mp_obj_t self_in, qstr attr, mp_obj_t *dest) {
+    py_line_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    if (dest[0] == MP_OBJ_NULL) {
+        switch (attr) {
+            case MP_QSTR_line:
+                dest[0] = mp_obj_new_tuple(4, (mp_obj_t []) { self->x1, self->y1, self->x2, self->y2 });
+                break;
+            case MP_QSTR_x1:
+                dest[0] = self->x1;
+                break;
+            case MP_QSTR_y1:
+                dest[0] = self->y1;
+                break;
+            case MP_QSTR_x2:
+                dest[0] = self->x2;
+                break;
+            case MP_QSTR_y2:
+                dest[0] = self->y2;
+                break;
+            case MP_QSTR_length:
+                dest[0] = self->length;
+                break;
+            case MP_QSTR_magnitude:
+                dest[0] = self->magnitude;
+                break;
+            case MP_QSTR_theta:
+                dest[0] = self->theta;
+                break;
+            case MP_QSTR_rho:
+                dest[0] = self->rho;
+                break;
+            default:
+                // Continue lookup in locals_dict.
+                dest[1] = MP_OBJ_SENTINEL;
+                break;
         }
     }
-    return MP_OBJ_NULL; // op not supported
 }
-
-mp_obj_t py_line_line(mp_obj_t self_in) {
-    return mp_obj_new_tuple(4, (mp_obj_t []) {((py_line_obj_t *) self_in)->x1,
-                                              ((py_line_obj_t *) self_in)->y1,
-                                              ((py_line_obj_t *) self_in)->x2,
-                                              ((py_line_obj_t *) self_in)->y2});
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_line_line_obj, py_line_line);
-
-mp_obj_t py_line_x1(mp_obj_t self_in) {
-    return ((py_line_obj_t *) self_in)->x1;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_line_x1_obj, py_line_x1);
-
-mp_obj_t py_line_y1(mp_obj_t self_in) {
-    return ((py_line_obj_t *) self_in)->y1;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_line_y1_obj, py_line_y1);
-
-mp_obj_t py_line_x2(mp_obj_t self_in) {
-    return ((py_line_obj_t *) self_in)->x2;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_line_x2_obj, py_line_x2);
-
-mp_obj_t py_line_y2(mp_obj_t self_in) {
-    return ((py_line_obj_t *) self_in)->y2;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_line_y2_obj, py_line_y2);
-
-mp_obj_t py_line_length(mp_obj_t self_in) {
-    return ((py_line_obj_t *) self_in)->length;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_line_length_obj, py_line_length);
-
-mp_obj_t py_line_magnitude(mp_obj_t self_in) {
-    return ((py_line_obj_t *) self_in)->magnitude;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_line_magnitude_obj, py_line_magnitude);
-
-mp_obj_t py_line_theta(mp_obj_t self_in) {
-    return ((py_line_obj_t *) self_in)->theta;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_line_theta_obj, py_line_theta);
-
-mp_obj_t py_line_rho(mp_obj_t self_in) {
-    return ((py_line_obj_t *) self_in)->rho;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_line_rho_obj, py_line_rho);
-
-static const mp_rom_map_elem_t py_line_locals_dict_table[] = {
-    { MP_ROM_QSTR(MP_QSTR_line), MP_ROM_PTR(&py_line_line_obj) },
-    { MP_ROM_QSTR(MP_QSTR_x1), MP_ROM_PTR(&py_line_x1_obj) },
-    { MP_ROM_QSTR(MP_QSTR_y1), MP_ROM_PTR(&py_line_y1_obj) },
-    { MP_ROM_QSTR(MP_QSTR_x2), MP_ROM_PTR(&py_line_x2_obj) },
-    { MP_ROM_QSTR(MP_QSTR_y2), MP_ROM_PTR(&py_line_y2_obj) },
-    { MP_ROM_QSTR(MP_QSTR_length), MP_ROM_PTR(&py_line_length_obj) },
-    { MP_ROM_QSTR(MP_QSTR_magnitude), MP_ROM_PTR(&py_line_magnitude_obj) },
-    { MP_ROM_QSTR(MP_QSTR_theta), MP_ROM_PTR(&py_line_theta_obj) },
-    { MP_ROM_QSTR(MP_QSTR_rho), MP_ROM_PTR(&py_line_rho_obj) }
-};
-
-static MP_DEFINE_CONST_DICT(py_line_locals_dict, py_line_locals_dict_table);
 
 static MP_DEFINE_CONST_OBJ_TYPE(
     py_line_type,
     MP_QSTR_line,
     MP_TYPE_FLAG_NONE,
-    print, py_line_print,
-    subscr, py_line_subscr,
-    locals_dict, &py_line_locals_dict
+    attr, py_line_attr,
+    print, py_line_print
     );
 
 static mp_obj_t py_image_get_regression(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
@@ -2977,7 +2869,6 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(py_image_get_regression_obj, 2, py_image_get_r
 ///////////////
 
 // Blob Object //
-#define py_blob_obj_size    12
 typedef struct py_blob_obj {
     mp_obj_base_t base;
     mp_obj_t corners;
@@ -2988,7 +2879,7 @@ typedef struct py_blob_obj {
 } py_blob_obj_t;
 
 static void py_blob_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
-    py_blob_obj_t *self = self_in;
+    py_blob_obj_t *self = MP_OBJ_TO_PTR(self_in);
     mp_printf(print,
               "{\"x\":%d, \"y\":%d, \"w\":%d, \"h\":%d,"
               " \"pixels\":%d, \"cx\":%d, \"cy\":%d, \"rotation\":%f, \"code\":%d, \"count\":%d,"
@@ -3007,164 +2898,7 @@ static void py_blob_print(const mp_print_t *print, mp_obj_t self_in, mp_print_ki
               mp_obj_get_float_to_d(self->roundness));
 }
 
-static mp_obj_t py_blob_subscr(mp_obj_t self_in, mp_obj_t index, mp_obj_t value) {
-    if (value == MP_OBJ_SENTINEL) {
-        // load
-        py_blob_obj_t *self = self_in;
-        if (MP_OBJ_IS_TYPE(index, &mp_type_slice)) {
-            mp_bound_slice_t slice;
-            if (!mp_seq_get_fast_slice_indexes(py_blob_obj_size, index, &slice)) {
-                mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("only slices with step=1 (aka None) are supported"));
-            }
-            mp_obj_tuple_t *result = mp_obj_new_tuple(slice.stop - slice.start, NULL);
-            mp_seq_copy(result->items, &(self->x) + slice.start, result->len, mp_obj_t);
-            return result;
-        }
-        switch (mp_get_index(self->base.type, py_blob_obj_size, index, false)) {
-            case 0: return self->x;
-            case 1: return self->y;
-            case 2: return self->w;
-            case 3: return self->h;
-            case 4: return self->pixels;
-            case 5: return mp_obj_new_int(fast_roundf(mp_obj_get_float_to_f(self->cx)));
-            case 6: return mp_obj_new_int(fast_roundf(mp_obj_get_float_to_f(self->cy)));
-            case 7: return self->rotation;
-            case 8: return self->code;
-            case 9: return self->count;
-            case 10: return self->perimeter;
-            case 11: return self->roundness;
-        }
-    }
-    return MP_OBJ_NULL; // op not supported
-}
-
-mp_obj_t py_blob_corners(mp_obj_t self_in) {
-    return ((py_blob_obj_t *) self_in)->corners;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_corners_obj, py_blob_corners);
-
-mp_obj_t py_blob_min_corners(mp_obj_t self_in) {
-    return ((py_blob_obj_t *) self_in)->min_corners;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_min_corners_obj, py_blob_min_corners);
-
-mp_obj_t py_blob_rect(mp_obj_t self_in) {
-    return mp_obj_new_tuple(4, (mp_obj_t []) {((py_blob_obj_t *) self_in)->x,
-                                              ((py_blob_obj_t *) self_in)->y,
-                                              ((py_blob_obj_t *) self_in)->w,
-                                              ((py_blob_obj_t *) self_in)->h});
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_rect_obj, py_blob_rect);
-
-mp_obj_t py_blob_x(mp_obj_t self_in) {
-    return ((py_blob_obj_t *) self_in)->x;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_x_obj, py_blob_x);
-
-mp_obj_t py_blob_y(mp_obj_t self_in) {
-    return ((py_blob_obj_t *) self_in)->y;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_y_obj, py_blob_y);
-
-mp_obj_t py_blob_w(mp_obj_t self_in) {
-    return ((py_blob_obj_t *) self_in)->w;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_w_obj, py_blob_w);
-
-mp_obj_t py_blob_h(mp_obj_t self_in) {
-    return ((py_blob_obj_t *) self_in)->h;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_h_obj, py_blob_h);
-
-mp_obj_t py_blob_pixels(mp_obj_t self_in) {
-    return ((py_blob_obj_t *) self_in)->pixels;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_pixels_obj, py_blob_pixels);
-
-mp_obj_t py_blob_cx(mp_obj_t self_in) {
-    return mp_obj_new_int(fast_roundf(mp_obj_get_float_to_f(((py_blob_obj_t *) self_in)->cx)));
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_cx_obj, py_blob_cx);
-
-mp_obj_t py_blob_cxf(mp_obj_t self_in) {
-    return ((py_blob_obj_t *) self_in)->cx;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_cxf_obj, py_blob_cxf);
-
-mp_obj_t py_blob_cy(mp_obj_t self_in) {
-    return mp_obj_new_int(fast_roundf(mp_obj_get_float_to_f(((py_blob_obj_t *) self_in)->cy)));
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_cy_obj, py_blob_cy);
-
-mp_obj_t py_blob_cyf(mp_obj_t self_in) {
-    return ((py_blob_obj_t *) self_in)->cy;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_cyf_obj, py_blob_cyf);
-
-mp_obj_t py_blob_rotation(mp_obj_t self_in) {
-    return ((py_blob_obj_t *) self_in)->rotation;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_rotation_obj, py_blob_rotation);
-
-mp_obj_t py_blob_rotation_deg(mp_obj_t self_in) {
-    return mp_obj_new_int((mp_int_t) IM_RAD2DEG(mp_obj_get_float_to_f(((py_blob_obj_t *) self_in)->rotation)));
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_rotation_deg_obj, py_blob_rotation_deg);
-
-mp_obj_t py_blob_rotation_rad(mp_obj_t self_in) {
-    return ((py_blob_obj_t *) self_in)->rotation;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_rotation_rad_obj, py_blob_rotation_rad);
-
-mp_obj_t py_blob_code(mp_obj_t self_in) {
-    return ((py_blob_obj_t *) self_in)->code;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_code_obj, py_blob_code);
-
-mp_obj_t py_blob_count(mp_obj_t self_in) {
-    return ((py_blob_obj_t *) self_in)->count;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_count_obj, py_blob_count);
-
-mp_obj_t py_blob_perimeter(mp_obj_t self_in) {
-    return ((py_blob_obj_t *) self_in)->perimeter;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_perimeter_obj, py_blob_perimeter);
-
-mp_obj_t py_blob_roundness(mp_obj_t self_in) {
-    return ((py_blob_obj_t *) self_in)->roundness;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_roundness_obj, py_blob_roundness);
-
-mp_obj_t py_blob_elongation(mp_obj_t self_in) {
-    return mp_obj_new_float(1 - mp_obj_get_float_to_f(((py_blob_obj_t *) self_in)->roundness));
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_elongation_obj, py_blob_elongation);
-
-mp_obj_t py_blob_area(mp_obj_t self_in) {
-    return mp_obj_new_int(mp_obj_get_int(((py_blob_obj_t *) self_in)->w) * mp_obj_get_int(((py_blob_obj_t *) self_in)->h));
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_area_obj, py_blob_area);
-
-mp_obj_t py_blob_density(mp_obj_t self_in) {
-    int area = mp_obj_get_int(((py_blob_obj_t *) self_in)->w) * mp_obj_get_int(((py_blob_obj_t *) self_in)->h);
-    int pixels = mp_obj_get_int(((py_blob_obj_t *) self_in)->pixels);
-    return mp_obj_new_float(IM_DIV(pixels, ((float) area)));
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_density_obj, py_blob_density);
-
-// Rect-area versus pixels (e.g. blob area) -> Above.
-// Rect-area versus perimeter -> Basically the same as the above with a different scale factor.
-// Rect-perimeter versus pixels (e.g. blob area) -> Basically the same as the above with a different scale factor.
-// Rect-perimeter versus perimeter -> Basically the same as the above with a different scale factor.
-mp_obj_t py_blob_compactness(mp_obj_t self_in) {
-    int pixels = mp_obj_get_int(((py_blob_obj_t *) self_in)->pixels);
-    float perimeter = mp_obj_get_int(((py_blob_obj_t *) self_in)->perimeter);
-    return mp_obj_new_float(IM_DIV((pixels * 4.0f * IMLIB_PI), (perimeter * perimeter)));
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_compactness_obj, py_blob_compactness);
-
-mp_obj_t py_blob_solidity(mp_obj_t self_in) {
+static mp_obj_t py_blob_solidity(mp_obj_t self_in) {
     mp_obj_t *corners, *p0, *p1, *p2, *p3;
     mp_obj_get_array_fixed_n(((py_blob_obj_t *) self_in)->min_corners, 4, &corners);
     mp_obj_get_array_fixed_n(corners[0], 2, &p0);
@@ -3187,9 +2921,7 @@ mp_obj_t py_blob_solidity(mp_obj_t self_in) {
     int pixels = mp_obj_get_int(((py_blob_obj_t *) self_in)->pixels);
     return mp_obj_new_float(IM_MIN(IM_DIV(pixels, min_area), 1));
 }
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_solidity_obj, py_blob_solidity);
-
-mp_obj_t py_blob_convexity(mp_obj_t self_in) {
+static mp_obj_t py_blob_convexity(mp_obj_t self_in) {
     mp_obj_t *corners, *p0, *p1, *p2, *p3;
     mp_obj_get_array_fixed_n(((py_blob_obj_t *) self_in)->min_corners, 4, &corners);
     mp_obj_get_array_fixed_n(corners[0], 2, &p0);
@@ -3214,23 +2946,12 @@ mp_obj_t py_blob_convexity(mp_obj_t self_in) {
     int perimeter = mp_obj_get_int(((py_blob_obj_t *) self_in)->perimeter);
     return mp_obj_new_float(IM_MIN(IM_DIV(d0 + d1 + d2 + d3, perimeter), 1));
 }
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_convexity_obj, py_blob_convexity);
 // Min rect-area versus pixels (e.g. blob area) -> Above.
 // Min rect-area versus perimeter -> Basically the same as the above with a different scale factor.
 // Min rect-perimeter versus pixels (e.g. blob area) -> Basically the same as the above with a different scale factor.
 // Min rect-perimeter versus perimeter -> Above
 
-mp_obj_t py_blob_x_hist_bins(mp_obj_t self_in) {
-    return ((py_blob_obj_t *) self_in)->x_hist_bins;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_x_hist_bins_obj, py_blob_x_hist_bins);
-
-mp_obj_t py_blob_y_hist_bins(mp_obj_t self_in) {
-    return ((py_blob_obj_t *) self_in)->y_hist_bins;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_y_hist_bins_obj, py_blob_y_hist_bins);
-
-mp_obj_t py_blob_major_axis_line(mp_obj_t self_in) {
+static mp_obj_t py_blob_major_axis_line(mp_obj_t self_in) {
     mp_obj_t *corners, *p0, *p1, *p2, *p3;
     mp_obj_get_array_fixed_n(((py_blob_obj_t *) self_in)->min_corners, 4, &corners);
     mp_obj_get_array_fixed_n(corners[0], 2, &p0);
@@ -3272,9 +2993,7 @@ mp_obj_t py_blob_major_axis_line(mp_obj_t self_in) {
                                                   mp_obj_new_int(m3y)});
     }
 }
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_major_axis_line_obj, py_blob_major_axis_line);
-
-mp_obj_t py_blob_minor_axis_line(mp_obj_t self_in) {
+static mp_obj_t py_blob_minor_axis_line(mp_obj_t self_in) {
     mp_obj_t *corners, *p0, *p1, *p2, *p3;
     mp_obj_get_array_fixed_n(((py_blob_obj_t *) self_in)->min_corners, 4, &corners);
     mp_obj_get_array_fixed_n(corners[0], 2, &p0);
@@ -3316,9 +3035,7 @@ mp_obj_t py_blob_minor_axis_line(mp_obj_t self_in) {
                                                   mp_obj_new_int(m3y)});
     }
 }
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_minor_axis_line_obj, py_blob_minor_axis_line);
-
-mp_obj_t py_blob_enclosing_circle(mp_obj_t self_in) {
+static mp_obj_t py_blob_enclosing_circle(mp_obj_t self_in) {
     mp_obj_t *corners, *p0, *p1, *p2, *p3;
     mp_obj_get_array_fixed_n(((py_blob_obj_t *) self_in)->min_corners, 4, &corners);
     mp_obj_get_array_fixed_n(corners[0], 2, &p0);
@@ -3349,9 +3066,7 @@ mp_obj_t py_blob_enclosing_circle(mp_obj_t self_in) {
                                               mp_obj_new_int(cy),
                                               mp_obj_new_int(fast_roundf(d))});
 }
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_enclosing_circle_obj, py_blob_enclosing_circle);
-
-mp_obj_t py_blob_enclosed_ellipse(mp_obj_t self_in) {
+static mp_obj_t py_blob_enclosed_ellipse(mp_obj_t self_in) {
     mp_obj_t *corners, *p0, *p1, *p2, *p3;
     mp_obj_get_array_fixed_n(((py_blob_obj_t *) self_in)->min_corners, 4, &corners);
     mp_obj_get_array_fixed_n(corners[0], 2, &p0);
@@ -3405,52 +3120,122 @@ mp_obj_t py_blob_enclosed_ellipse(mp_obj_t self_in) {
                                               mp_obj_new_int((int) b),
                                               mp_obj_new_int((int) r)});
 }
-static MP_DEFINE_CONST_FUN_OBJ_1(py_blob_enclosed_ellipse_obj, py_blob_enclosed_ellipse);
-
-static const mp_rom_map_elem_t py_blob_locals_dict_table[] = {
-    { MP_ROM_QSTR(MP_QSTR_corners), MP_ROM_PTR(&py_blob_corners_obj) },
-    { MP_ROM_QSTR(MP_QSTR_min_corners), MP_ROM_PTR(&py_blob_min_corners_obj) },
-    { MP_ROM_QSTR(MP_QSTR_rect), MP_ROM_PTR(&py_blob_rect_obj) },
-    { MP_ROM_QSTR(MP_QSTR_x), MP_ROM_PTR(&py_blob_x_obj) },
-    { MP_ROM_QSTR(MP_QSTR_y), MP_ROM_PTR(&py_blob_y_obj) },
-    { MP_ROM_QSTR(MP_QSTR_w), MP_ROM_PTR(&py_blob_w_obj) },
-    { MP_ROM_QSTR(MP_QSTR_h), MP_ROM_PTR(&py_blob_h_obj) },
-    { MP_ROM_QSTR(MP_QSTR_pixels), MP_ROM_PTR(&py_blob_pixels_obj) },
-    { MP_ROM_QSTR(MP_QSTR_cx), MP_ROM_PTR(&py_blob_cx_obj) },
-    { MP_ROM_QSTR(MP_QSTR_cxf), MP_ROM_PTR(&py_blob_cxf_obj) },
-    { MP_ROM_QSTR(MP_QSTR_cy), MP_ROM_PTR(&py_blob_cy_obj) },
-    { MP_ROM_QSTR(MP_QSTR_cyf), MP_ROM_PTR(&py_blob_cyf_obj) },
-    { MP_ROM_QSTR(MP_QSTR_rotation), MP_ROM_PTR(&py_blob_rotation_obj) },
-    { MP_ROM_QSTR(MP_QSTR_rotation_deg), MP_ROM_PTR(&py_blob_rotation_deg_obj) },
-    { MP_ROM_QSTR(MP_QSTR_rotation_rad), MP_ROM_PTR(&py_blob_rotation_rad_obj) },
-    { MP_ROM_QSTR(MP_QSTR_code), MP_ROM_PTR(&py_blob_code_obj) },
-    { MP_ROM_QSTR(MP_QSTR_count), MP_ROM_PTR(&py_blob_count_obj) },
-    { MP_ROM_QSTR(MP_QSTR_perimeter), MP_ROM_PTR(&py_blob_perimeter_obj) },
-    { MP_ROM_QSTR(MP_QSTR_roundness), MP_ROM_PTR(&py_blob_roundness_obj) },
-    { MP_ROM_QSTR(MP_QSTR_elongation), MP_ROM_PTR(&py_blob_elongation_obj) },
-    { MP_ROM_QSTR(MP_QSTR_area), MP_ROM_PTR(&py_blob_area_obj) },
-    { MP_ROM_QSTR(MP_QSTR_density), MP_ROM_PTR(&py_blob_density_obj) },
-    { MP_ROM_QSTR(MP_QSTR_extent), MP_ROM_PTR(&py_blob_density_obj) },
-    { MP_ROM_QSTR(MP_QSTR_compactness), MP_ROM_PTR(&py_blob_compactness_obj) },
-    { MP_ROM_QSTR(MP_QSTR_solidity), MP_ROM_PTR(&py_blob_solidity_obj) },
-    { MP_ROM_QSTR(MP_QSTR_convexity), MP_ROM_PTR(&py_blob_convexity_obj) },
-    { MP_ROM_QSTR(MP_QSTR_x_hist_bins), MP_ROM_PTR(&py_blob_x_hist_bins_obj) },
-    { MP_ROM_QSTR(MP_QSTR_y_hist_bins), MP_ROM_PTR(&py_blob_y_hist_bins_obj) },
-    { MP_ROM_QSTR(MP_QSTR_major_axis_line), MP_ROM_PTR(&py_blob_major_axis_line_obj) },
-    { MP_ROM_QSTR(MP_QSTR_minor_axis_line), MP_ROM_PTR(&py_blob_minor_axis_line_obj) },
-    { MP_ROM_QSTR(MP_QSTR_enclosing_circle), MP_ROM_PTR(&py_blob_enclosing_circle_obj) },
-    { MP_ROM_QSTR(MP_QSTR_enclosed_ellipse), MP_ROM_PTR(&py_blob_enclosed_ellipse_obj) }
-};
-
-static MP_DEFINE_CONST_DICT(py_blob_locals_dict, py_blob_locals_dict_table);
+static void py_blob_attr(mp_obj_t self_in, qstr attr, mp_obj_t *dest) {
+    py_blob_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    if (dest[0] == MP_OBJ_NULL) {
+        switch (attr) {
+            case MP_QSTR_corners:
+                dest[0] = self->corners;
+                break;
+            case MP_QSTR_min_corners:
+                dest[0] = self->min_corners;
+                break;
+            case MP_QSTR_rect:
+                dest[0] = mp_obj_new_tuple(4, (mp_obj_t []) { self->x, self->y, self->w, self->h });
+                break;
+            case MP_QSTR_x:
+                dest[0] = self->x;
+                break;
+            case MP_QSTR_y:
+                dest[0] = self->y;
+                break;
+            case MP_QSTR_w:
+                dest[0] = self->w;
+                break;
+            case MP_QSTR_h:
+                dest[0] = self->h;
+                break;
+            case MP_QSTR_pixels:
+                dest[0] = self->pixels;
+                break;
+            case MP_QSTR_cx:
+                dest[0] = mp_obj_new_int(fast_roundf(mp_obj_get_float_to_f(self->cx)));
+                break;
+            case MP_QSTR_cxf:
+                dest[0] = self->cx;
+                break;
+            case MP_QSTR_cy:
+                dest[0] = mp_obj_new_int(fast_roundf(mp_obj_get_float_to_f(self->cy)));
+                break;
+            case MP_QSTR_cyf:
+                dest[0] = self->cy;
+                break;
+            case MP_QSTR_rotation:
+            case MP_QSTR_rotation_rad:
+                dest[0] = self->rotation;
+                break;
+            case MP_QSTR_rotation_deg:
+                dest[0] = mp_obj_new_int((mp_int_t) IM_RAD2DEG(mp_obj_get_float_to_f(self->rotation)));
+                break;
+            case MP_QSTR_code:
+                dest[0] = self->code;
+                break;
+            case MP_QSTR_count:
+                dest[0] = self->count;
+                break;
+            case MP_QSTR_perimeter:
+                dest[0] = self->perimeter;
+                break;
+            case MP_QSTR_roundness:
+                dest[0] = self->roundness;
+                break;
+            case MP_QSTR_elongation:
+                dest[0] = mp_obj_new_float(1 - mp_obj_get_float_to_f(self->roundness));
+                break;
+            case MP_QSTR_area:
+                dest[0] = mp_obj_new_int(mp_obj_get_int(self->w) * mp_obj_get_int(self->h));
+                break;
+            case MP_QSTR_density:
+            case MP_QSTR_extent: {
+                int area = mp_obj_get_int(self->w) * mp_obj_get_int(self->h);
+                int pixels = mp_obj_get_int(self->pixels);
+                dest[0] = mp_obj_new_float(IM_DIV(pixels, ((float) area)));
+                break;
+            }
+            case MP_QSTR_compactness: {
+                int pixels = mp_obj_get_int(self->pixels);
+                float perimeter = mp_obj_get_int(self->perimeter);
+                dest[0] = mp_obj_new_float(IM_DIV((pixels * 4.0f * IMLIB_PI), (perimeter * perimeter)));
+                break;
+            }
+            case MP_QSTR_solidity:
+                dest[0] = py_blob_solidity(self_in);
+                break;
+            case MP_QSTR_convexity:
+                dest[0] = py_blob_convexity(self_in);
+                break;
+            case MP_QSTR_x_hist_bins:
+                dest[0] = self->x_hist_bins;
+                break;
+            case MP_QSTR_y_hist_bins:
+                dest[0] = self->y_hist_bins;
+                break;
+            case MP_QSTR_major_axis_line:
+                dest[0] = py_blob_major_axis_line(self_in);
+                break;
+            case MP_QSTR_minor_axis_line:
+                dest[0] = py_blob_minor_axis_line(self_in);
+                break;
+            case MP_QSTR_enclosing_circle:
+                dest[0] = py_blob_enclosing_circle(self_in);
+                break;
+            case MP_QSTR_enclosed_ellipse:
+                dest[0] = py_blob_enclosed_ellipse(self_in);
+                break;
+            default:
+                // Continue lookup in locals_dict.
+                dest[1] = MP_OBJ_SENTINEL;
+                break;
+        }
+    }
+}
 
 static MP_DEFINE_CONST_OBJ_TYPE(
     py_blob_type,
     MP_QSTR_blob,
     MP_TYPE_FLAG_NONE,
-    print, py_blob_print,
-    subscr, py_blob_subscr,
-    locals_dict, &py_blob_locals_dict
+    attr, py_blob_attr,
+    print, py_blob_print
     );
 
 #define NEW_CORNER_TUPLE(corners, index) \
@@ -3705,14 +3490,13 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(py_image_find_line_segments_obj, 1, py_image_f
 
 #ifdef IMLIB_ENABLE_FIND_CIRCLES
 // Circle Object //
-#define py_circle_obj_size    4
 typedef struct py_circle_obj {
     mp_obj_base_t base;
     mp_obj_t x, y, r, magnitude;
 } py_circle_obj_t;
 
 static void py_circle_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
-    py_circle_obj_t *self = self_in;
+    py_circle_obj_t *self = MP_OBJ_TO_PTR(self_in);
     mp_printf(print,
               "{\"x\":%d, \"y\":%d, \"r\":%d, \"magnitude\":%d}",
               mp_obj_get_int(self->x),
@@ -3721,73 +3505,39 @@ static void py_circle_print(const mp_print_t *print, mp_obj_t self_in, mp_print_
               mp_obj_get_int(self->magnitude));
 }
 
-static mp_obj_t py_circle_subscr(mp_obj_t self_in, mp_obj_t index, mp_obj_t value) {
-    if (value == MP_OBJ_SENTINEL) {
-        // load
-        py_circle_obj_t *self = self_in;
-        if (MP_OBJ_IS_TYPE(index, &mp_type_slice)) {
-            mp_bound_slice_t slice;
-            if (!mp_seq_get_fast_slice_indexes(py_circle_obj_size, index, &slice)) {
-                mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("only slices with step=1 (aka None) are supported"));
-            }
-            mp_obj_tuple_t *result = mp_obj_new_tuple(slice.stop - slice.start, NULL);
-            mp_seq_copy(result->items, &(self->x) + slice.start, result->len, mp_obj_t);
-            return result;
-        }
-        switch (mp_get_index(self->base.type, py_circle_obj_size, index, false)) {
-            case 0: return self->x;
-            case 1: return self->y;
-            case 2: return self->r;
-            case 3: return self->magnitude;
+static void py_circle_attr(mp_obj_t self_in, qstr attr, mp_obj_t *dest) {
+    py_circle_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    if (dest[0] == MP_OBJ_NULL) {
+        switch (attr) {
+            case MP_QSTR_circle:
+                dest[0] = mp_obj_new_tuple(3, (mp_obj_t []) { self->x, self->y, self->r });
+                break;
+            case MP_QSTR_x:
+                dest[0] = self->x;
+                break;
+            case MP_QSTR_y:
+                dest[0] = self->y;
+                break;
+            case MP_QSTR_r:
+                dest[0] = self->r;
+                break;
+            case MP_QSTR_magnitude:
+                dest[0] = self->magnitude;
+                break;
+            default:
+                // Continue lookup in locals_dict.
+                dest[1] = MP_OBJ_SENTINEL;
+                break;
         }
     }
-    return MP_OBJ_NULL; // op not supported
 }
-
-mp_obj_t py_circle_circle(mp_obj_t self_in) {
-    return mp_obj_new_tuple(3, (mp_obj_t []) {((py_circle_obj_t *) self_in)->x,
-                                              ((py_circle_obj_t *) self_in)->y,
-                                              ((py_circle_obj_t *) self_in)->r});
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_circle_circle_obj, py_circle_circle);
-
-mp_obj_t py_circle_x(mp_obj_t self_in) {
-    return ((py_circle_obj_t *) self_in)->x;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_circle_x_obj, py_circle_x);
-
-mp_obj_t py_circle_y(mp_obj_t self_in) {
-    return ((py_circle_obj_t *) self_in)->y;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_circle_y_obj, py_circle_y);
-
-mp_obj_t py_circle_r(mp_obj_t self_in) {
-    return ((py_circle_obj_t *) self_in)->r;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_circle_r_obj, py_circle_r);
-
-mp_obj_t py_circle_magnitude(mp_obj_t self_in) {
-    return ((py_circle_obj_t *) self_in)->magnitude;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_circle_magnitude_obj, py_circle_magnitude);
-
-static const mp_rom_map_elem_t py_circle_locals_dict_table[] = {
-    { MP_ROM_QSTR(MP_QSTR_circle), MP_ROM_PTR(&py_circle_circle_obj) },
-    { MP_ROM_QSTR(MP_QSTR_x), MP_ROM_PTR(&py_circle_x_obj) },
-    { MP_ROM_QSTR(MP_QSTR_y), MP_ROM_PTR(&py_circle_y_obj) },
-    { MP_ROM_QSTR(MP_QSTR_r), MP_ROM_PTR(&py_circle_r_obj) },
-    { MP_ROM_QSTR(MP_QSTR_magnitude), MP_ROM_PTR(&py_circle_magnitude_obj) }
-};
-
-static MP_DEFINE_CONST_DICT(py_circle_locals_dict, py_circle_locals_dict_table);
 
 static MP_DEFINE_CONST_OBJ_TYPE(
     py_circle_type,
     MP_QSTR_circle,
     MP_TYPE_FLAG_NONE,
-    print, py_circle_print,
-    subscr, py_circle_subscr,
-    locals_dict, &py_circle_locals_dict
+    attr, py_circle_attr,
+    print, py_circle_print
     );
 
 static mp_obj_t py_image_find_circles(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
@@ -3852,7 +3602,6 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(py_image_find_circles_obj, 1, py_image_find_ci
 
 #ifdef IMLIB_ENABLE_FIND_RECTS
 // Rect Object //
-#define py_rect_obj_size    5
 typedef struct py_rect_obj {
     mp_obj_base_t base;
     mp_obj_t corners;
@@ -3860,7 +3609,7 @@ typedef struct py_rect_obj {
 } py_rect_obj_t;
 
 static void py_rect_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
-    py_rect_obj_t *self = self_in;
+    py_rect_obj_t *self = MP_OBJ_TO_PTR(self_in);
     mp_printf(print,
               "{\"x\":%d, \"y\":%d, \"w\":%d, \"h\":%d, \"magnitude\":%d}",
               mp_obj_get_int(self->x),
@@ -3870,87 +3619,45 @@ static void py_rect_print(const mp_print_t *print, mp_obj_t self_in, mp_print_ki
               mp_obj_get_int(self->magnitude));
 }
 
-static mp_obj_t py_rect_subscr(mp_obj_t self_in, mp_obj_t index, mp_obj_t value) {
-    if (value == MP_OBJ_SENTINEL) {
-        // load
-        py_rect_obj_t *self = self_in;
-        if (MP_OBJ_IS_TYPE(index, &mp_type_slice)) {
-            mp_bound_slice_t slice;
-            if (!mp_seq_get_fast_slice_indexes(py_rect_obj_size, index, &slice)) {
-                mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("only slices with step=1 (aka None) are supported"));
-            }
-            mp_obj_tuple_t *result = mp_obj_new_tuple(slice.stop - slice.start, NULL);
-            mp_seq_copy(result->items, &(self->x) + slice.start, result->len, mp_obj_t);
-            return result;
-        }
-        switch (mp_get_index(self->base.type, py_rect_obj_size, index, false)) {
-            case 0: return self->x;
-            case 1: return self->y;
-            case 2: return self->w;
-            case 3: return self->h;
-            case 4: return self->magnitude;
+static void py_rect_attr(mp_obj_t self_in, qstr attr, mp_obj_t *dest) {
+    py_rect_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    if (dest[0] == MP_OBJ_NULL) {
+        switch (attr) {
+            case MP_QSTR_corners:
+                dest[0] = self->corners;
+                break;
+            case MP_QSTR_rect:
+                dest[0] = mp_obj_new_tuple(4, (mp_obj_t []) { self->x, self->y, self->w, self->h });
+                break;
+            case MP_QSTR_x:
+                dest[0] = self->x;
+                break;
+            case MP_QSTR_y:
+                dest[0] = self->y;
+                break;
+            case MP_QSTR_w:
+                dest[0] = self->w;
+                break;
+            case MP_QSTR_h:
+                dest[0] = self->h;
+                break;
+            case MP_QSTR_magnitude:
+                dest[0] = self->magnitude;
+                break;
+            default:
+                // Continue lookup in locals_dict.
+                dest[1] = MP_OBJ_SENTINEL;
+                break;
         }
     }
-    return MP_OBJ_NULL; // op not supported
 }
-
-mp_obj_t py_rect_corners(mp_obj_t self_in) {
-    return ((py_rect_obj_t *) self_in)->corners;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_rect_corners_obj, py_rect_corners);
-
-mp_obj_t py_rect_rect(mp_obj_t self_in) {
-    return mp_obj_new_tuple(4, (mp_obj_t []) {((py_rect_obj_t *) self_in)->x,
-                                              ((py_rect_obj_t *) self_in)->y,
-                                              ((py_rect_obj_t *) self_in)->w,
-                                              ((py_rect_obj_t *) self_in)->h});
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_rect_rect_obj, py_rect_rect);
-
-mp_obj_t py_rect_x(mp_obj_t self_in) {
-    return ((py_rect_obj_t *) self_in)->x;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_rect_x_obj, py_rect_x);
-
-mp_obj_t py_rect_y(mp_obj_t self_in) {
-    return ((py_rect_obj_t *) self_in)->y;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_rect_y_obj, py_rect_y);
-
-mp_obj_t py_rect_w(mp_obj_t self_in) {
-    return ((py_rect_obj_t *) self_in)->w;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_rect_w_obj, py_rect_w);
-
-mp_obj_t py_rect_h(mp_obj_t self_in) {
-    return ((py_rect_obj_t *) self_in)->h;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_rect_h_obj, py_rect_h);
-
-mp_obj_t py_rect_magnitude(mp_obj_t self_in) {
-    return ((py_rect_obj_t *) self_in)->magnitude;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_rect_magnitude_obj, py_rect_magnitude);
-
-static const mp_rom_map_elem_t py_rect_locals_dict_table[] = {
-    { MP_ROM_QSTR(MP_QSTR_corners), MP_ROM_PTR(&py_rect_corners_obj) },
-    { MP_ROM_QSTR(MP_QSTR_rect), MP_ROM_PTR(&py_rect_rect_obj) },
-    { MP_ROM_QSTR(MP_QSTR_x), MP_ROM_PTR(&py_rect_x_obj) },
-    { MP_ROM_QSTR(MP_QSTR_y), MP_ROM_PTR(&py_rect_y_obj) },
-    { MP_ROM_QSTR(MP_QSTR_w), MP_ROM_PTR(&py_rect_w_obj) },
-    { MP_ROM_QSTR(MP_QSTR_h), MP_ROM_PTR(&py_rect_h_obj) },
-    { MP_ROM_QSTR(MP_QSTR_magnitude), MP_ROM_PTR(&py_rect_magnitude_obj) }
-};
-
-static MP_DEFINE_CONST_DICT(py_rect_locals_dict, py_rect_locals_dict_table);
 
 static MP_DEFINE_CONST_OBJ_TYPE(
     py_rect_type,
     MP_QSTR_rect,
     MP_TYPE_FLAG_NONE,
-    print, py_rect_print,
-    subscr, py_rect_subscr,
-    locals_dict, &py_rect_locals_dict
+    attr, py_rect_attr,
+    print, py_rect_print
     );
 
 static mp_obj_t py_image_find_rects(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
@@ -4004,7 +3711,6 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(py_image_find_rects_obj, 1, py_image_find_rect
 
 #ifdef IMLIB_ENABLE_QRCODES
 // QRCode Object //
-#define py_qrcode_obj_size    10
 typedef struct py_qrcode_obj {
     mp_obj_base_t base;
     mp_obj_t corners;
@@ -4012,7 +3718,7 @@ typedef struct py_qrcode_obj {
 } py_qrcode_obj_t;
 
 static void py_qrcode_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
-    py_qrcode_obj_t *self = self_in;
+    py_qrcode_obj_t *self = MP_OBJ_TO_PTR(self_in);
     mp_printf(print,
               "{\"x\":%d, \"y\":%d, \"w\":%d, \"h\":%d, \"payload\":\"%s\","
               " \"version\":%d, \"ecc_level\":%d, \"mask\":%d, \"data_type\":%d, \"eci\":%d}",
@@ -4028,146 +3734,72 @@ static void py_qrcode_print(const mp_print_t *print, mp_obj_t self_in, mp_print_
               mp_obj_get_int(self->eci));
 }
 
-static mp_obj_t py_qrcode_subscr(mp_obj_t self_in, mp_obj_t index, mp_obj_t value) {
-    if (value == MP_OBJ_SENTINEL) {
-        // load
-        py_qrcode_obj_t *self = self_in;
-        if (MP_OBJ_IS_TYPE(index, &mp_type_slice)) {
-            mp_bound_slice_t slice;
-            if (!mp_seq_get_fast_slice_indexes(py_qrcode_obj_size, index, &slice)) {
-                mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("only slices with step=1 (aka None) are supported"));
-            }
-            mp_obj_tuple_t *result = mp_obj_new_tuple(slice.stop - slice.start, NULL);
-            mp_seq_copy(result->items, &(self->x) + slice.start, result->len, mp_obj_t);
-            return result;
-        }
-        switch (mp_get_index(self->base.type, py_qrcode_obj_size, index, false)) {
-            case 0: return self->x;
-            case 1: return self->y;
-            case 2: return self->w;
-            case 3: return self->h;
-            case 4: return self->payload;
-            case 5: return self->version;
-            case 6: return self->ecc_level;
-            case 7: return self->mask;
-            case 8: return self->data_type;
-            case 9: return self->eci;
+static void py_qrcode_attr(mp_obj_t self_in, qstr attr, mp_obj_t *dest) {
+    py_qrcode_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    if (dest[0] == MP_OBJ_NULL) {
+        switch (attr) {
+            case MP_QSTR_corners:
+                dest[0] = self->corners;
+                break;
+            case MP_QSTR_rect:
+                dest[0] = mp_obj_new_tuple(4, (mp_obj_t []) { self->x, self->y, self->w, self->h });
+                break;
+            case MP_QSTR_x:
+                dest[0] = self->x;
+                break;
+            case MP_QSTR_y:
+                dest[0] = self->y;
+                break;
+            case MP_QSTR_w:
+                dest[0] = self->w;
+                break;
+            case MP_QSTR_h:
+                dest[0] = self->h;
+                break;
+            case MP_QSTR_payload:
+                dest[0] = self->payload;
+                break;
+            case MP_QSTR_version:
+                dest[0] = self->version;
+                break;
+            case MP_QSTR_ecc_level:
+                dest[0] = self->ecc_level;
+                break;
+            case MP_QSTR_mask:
+                dest[0] = self->mask;
+                break;
+            case MP_QSTR_data_type:
+                dest[0] = self->data_type;
+                break;
+            case MP_QSTR_eci:
+                dest[0] = self->eci;
+                break;
+            case MP_QSTR_is_numeric:
+                dest[0] = mp_obj_new_bool(mp_obj_get_int(self->data_type) == 1);
+                break;
+            case MP_QSTR_is_alphanumeric:
+                dest[0] = mp_obj_new_bool(mp_obj_get_int(self->data_type) == 2);
+                break;
+            case MP_QSTR_is_binary:
+                dest[0] = mp_obj_new_bool(mp_obj_get_int(self->data_type) == 4);
+                break;
+            case MP_QSTR_is_kanji:
+                dest[0] = mp_obj_new_bool(mp_obj_get_int(self->data_type) == 8);
+                break;
+            default:
+                // Continue lookup in locals_dict.
+                dest[1] = MP_OBJ_SENTINEL;
+                break;
         }
     }
-    return MP_OBJ_NULL; // op not supported
 }
-
-mp_obj_t py_qrcode_corners(mp_obj_t self_in) {
-    return ((py_qrcode_obj_t *) self_in)->corners;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_qrcode_corners_obj, py_qrcode_corners);
-
-mp_obj_t py_qrcode_rect(mp_obj_t self_in) {
-    return mp_obj_new_tuple(4, (mp_obj_t []) {((py_qrcode_obj_t *) self_in)->x,
-                                              ((py_qrcode_obj_t *) self_in)->y,
-                                              ((py_qrcode_obj_t *) self_in)->w,
-                                              ((py_qrcode_obj_t *) self_in)->h});
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_qrcode_rect_obj, py_qrcode_rect);
-
-mp_obj_t py_qrcode_x(mp_obj_t self_in) {
-    return ((py_qrcode_obj_t *) self_in)->x;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_qrcode_x_obj, py_qrcode_x);
-
-mp_obj_t py_qrcode_y(mp_obj_t self_in) {
-    return ((py_qrcode_obj_t *) self_in)->y;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_qrcode_y_obj, py_qrcode_y);
-
-mp_obj_t py_qrcode_w(mp_obj_t self_in) {
-    return ((py_qrcode_obj_t *) self_in)->w;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_qrcode_w_obj, py_qrcode_w);
-
-mp_obj_t py_qrcode_h(mp_obj_t self_in) {
-    return ((py_qrcode_obj_t *) self_in)->h;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_qrcode_h_obj, py_qrcode_h);
-
-mp_obj_t py_qrcode_payload(mp_obj_t self_in) {
-    return ((py_qrcode_obj_t *) self_in)->payload;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_qrcode_payload_obj, py_qrcode_payload);
-
-mp_obj_t py_qrcode_version(mp_obj_t self_in) {
-    return ((py_qrcode_obj_t *) self_in)->version;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_qrcode_version_obj, py_qrcode_version);
-
-mp_obj_t py_qrcode_ecc_level(mp_obj_t self_in) {
-    return ((py_qrcode_obj_t *) self_in)->ecc_level;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_qrcode_ecc_level_obj, py_qrcode_ecc_level);
-
-mp_obj_t py_qrcode_mask(mp_obj_t self_in) {
-    return ((py_qrcode_obj_t *) self_in)->mask;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_qrcode_mask_obj, py_qrcode_mask);
-
-mp_obj_t py_qrcode_data_type(mp_obj_t self_in) {
-    return ((py_qrcode_obj_t *) self_in)->data_type;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_qrcode_data_type_obj, py_qrcode_data_type);
-
-mp_obj_t py_qrcode_eci(mp_obj_t self_in) {
-    return ((py_qrcode_obj_t *) self_in)->eci;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_qrcode_eci_obj, py_qrcode_eci);
-
-mp_obj_t py_qrcode_is_numeric(mp_obj_t self_in) {
-    return mp_obj_new_bool(mp_obj_get_int(((py_qrcode_obj_t *) self_in)->data_type) == 1);
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_qrcode_is_numeric_obj, py_qrcode_is_numeric);
-
-mp_obj_t py_qrcode_is_alphanumeric(mp_obj_t self_in) {
-    return mp_obj_new_bool(mp_obj_get_int(((py_qrcode_obj_t *) self_in)->data_type) == 2);
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_qrcode_is_alphanumeric_obj, py_qrcode_is_alphanumeric);
-
-mp_obj_t py_qrcode_is_binary(mp_obj_t self_in) {
-    return mp_obj_new_bool(mp_obj_get_int(((py_qrcode_obj_t *) self_in)->data_type) == 4);
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_qrcode_is_binary_obj, py_qrcode_is_binary);
-
-mp_obj_t py_qrcode_is_kanji(mp_obj_t self_in) {
-    return mp_obj_new_bool(mp_obj_get_int(((py_qrcode_obj_t *) self_in)->data_type) == 8);
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_qrcode_is_kanji_obj, py_qrcode_is_kanji);
-
-static const mp_rom_map_elem_t py_qrcode_locals_dict_table[] = {
-    { MP_ROM_QSTR(MP_QSTR_corners), MP_ROM_PTR(&py_qrcode_corners_obj) },
-    { MP_ROM_QSTR(MP_QSTR_rect), MP_ROM_PTR(&py_qrcode_rect_obj) },
-    { MP_ROM_QSTR(MP_QSTR_x), MP_ROM_PTR(&py_qrcode_x_obj) },
-    { MP_ROM_QSTR(MP_QSTR_y), MP_ROM_PTR(&py_qrcode_y_obj) },
-    { MP_ROM_QSTR(MP_QSTR_w), MP_ROM_PTR(&py_qrcode_w_obj) },
-    { MP_ROM_QSTR(MP_QSTR_h), MP_ROM_PTR(&py_qrcode_h_obj) },
-    { MP_ROM_QSTR(MP_QSTR_payload), MP_ROM_PTR(&py_qrcode_payload_obj) },
-    { MP_ROM_QSTR(MP_QSTR_version), MP_ROM_PTR(&py_qrcode_version_obj) },
-    { MP_ROM_QSTR(MP_QSTR_ecc_level), MP_ROM_PTR(&py_qrcode_ecc_level_obj) },
-    { MP_ROM_QSTR(MP_QSTR_mask), MP_ROM_PTR(&py_qrcode_mask_obj) },
-    { MP_ROM_QSTR(MP_QSTR_data_type), MP_ROM_PTR(&py_qrcode_data_type_obj) },
-    { MP_ROM_QSTR(MP_QSTR_eci), MP_ROM_PTR(&py_qrcode_eci_obj) },
-    { MP_ROM_QSTR(MP_QSTR_is_numeric), MP_ROM_PTR(&py_qrcode_is_numeric_obj) },
-    { MP_ROM_QSTR(MP_QSTR_is_alphanumeric), MP_ROM_PTR(&py_qrcode_is_alphanumeric_obj) },
-    { MP_ROM_QSTR(MP_QSTR_is_binary), MP_ROM_PTR(&py_qrcode_is_binary_obj) },
-    { MP_ROM_QSTR(MP_QSTR_is_kanji), MP_ROM_PTR(&py_qrcode_is_kanji_obj) }
-};
-
-static MP_DEFINE_CONST_DICT(py_qrcode_locals_dict, py_qrcode_locals_dict_table);
 
 static MP_DEFINE_CONST_OBJ_TYPE(
     py_qrcode_type,
     MP_QSTR_qrcode,
     MP_TYPE_FLAG_NONE,
-    print, py_qrcode_print,
-    subscr, py_qrcode_subscr,
-    locals_dict, &py_qrcode_locals_dict
+    attr, py_qrcode_attr,
+    print, py_qrcode_print
     );
 
 static mp_obj_t py_image_find_qrcodes(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
@@ -4483,7 +4115,6 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(py_image_find_apriltags_obj, 1, py_image_find_
 
 #ifdef IMLIB_ENABLE_DATAMATRICES
 // DataMatrix Object //
-#define py_datamatrix_obj_size    10
 typedef struct py_datamatrix_obj {
     mp_obj_base_t base;
     mp_obj_t corners;
@@ -4491,7 +4122,7 @@ typedef struct py_datamatrix_obj {
 } py_datamatrix_obj_t;
 
 static void py_datamatrix_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
-    py_datamatrix_obj_t *self = self_in;
+    py_datamatrix_obj_t *self = MP_OBJ_TO_PTR(self_in);
     mp_printf(print,
               "{\"x\":%d, \"y\":%d, \"w\":%d, \"h\":%d, \"payload\":\"%s\","
               " \"rotation\":%f, \"rows\":%d, \"columns\":%d, \"capacity\":%d, \"padding\":%d}",
@@ -4507,122 +4138,60 @@ static void py_datamatrix_print(const mp_print_t *print, mp_obj_t self_in, mp_pr
               mp_obj_get_int(self->padding));
 }
 
-static mp_obj_t py_datamatrix_subscr(mp_obj_t self_in, mp_obj_t index, mp_obj_t value) {
-    if (value == MP_OBJ_SENTINEL) {
-        // load
-        py_datamatrix_obj_t *self = self_in;
-        if (MP_OBJ_IS_TYPE(index, &mp_type_slice)) {
-            mp_bound_slice_t slice;
-            if (!mp_seq_get_fast_slice_indexes(py_datamatrix_obj_size, index, &slice)) {
-                mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("only slices with step=1 (aka None) are supported"));
-            }
-            mp_obj_tuple_t *result = mp_obj_new_tuple(slice.stop - slice.start, NULL);
-            mp_seq_copy(result->items, &(self->x) + slice.start, result->len, mp_obj_t);
-            return result;
-        }
-        switch (mp_get_index(self->base.type, py_datamatrix_obj_size, index, false)) {
-            case 0: return self->x;
-            case 1: return self->y;
-            case 2: return self->w;
-            case 3: return self->h;
-            case 4: return self->payload;
-            case 5: return self->rotation;
-            case 6: return self->rows;
-            case 7: return self->columns;
-            case 8: return self->capacity;
-            case 9: return self->padding;
+static void py_datamatrix_attr(mp_obj_t self_in, qstr attr, mp_obj_t *dest) {
+    py_datamatrix_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    if (dest[0] == MP_OBJ_NULL) {
+        switch (attr) {
+            case MP_QSTR_corners:
+                dest[0] = self->corners;
+                break;
+            case MP_QSTR_rect:
+                dest[0] = mp_obj_new_tuple(4, (mp_obj_t []) { self->x, self->y, self->w, self->h });
+                break;
+            case MP_QSTR_x:
+                dest[0] = self->x;
+                break;
+            case MP_QSTR_y:
+                dest[0] = self->y;
+                break;
+            case MP_QSTR_w:
+                dest[0] = self->w;
+                break;
+            case MP_QSTR_h:
+                dest[0] = self->h;
+                break;
+            case MP_QSTR_payload:
+                dest[0] = self->payload;
+                break;
+            case MP_QSTR_rotation:
+                dest[0] = self->rotation;
+                break;
+            case MP_QSTR_rows:
+                dest[0] = self->rows;
+                break;
+            case MP_QSTR_columns:
+                dest[0] = self->columns;
+                break;
+            case MP_QSTR_capacity:
+                dest[0] = self->capacity;
+                break;
+            case MP_QSTR_padding:
+                dest[0] = self->padding;
+                break;
+            default:
+                // Continue lookup in locals_dict.
+                dest[1] = MP_OBJ_SENTINEL;
+                break;
         }
     }
-    return MP_OBJ_NULL; // op not supported
 }
-
-mp_obj_t py_datamatrix_corners(mp_obj_t self_in) {
-    return ((py_datamatrix_obj_t *) self_in)->corners;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_datamatrix_corners_obj, py_datamatrix_corners);
-
-mp_obj_t py_datamatrix_rect(mp_obj_t self_in) {
-    return mp_obj_new_tuple(4, (mp_obj_t []) {((py_datamatrix_obj_t *) self_in)->x,
-                                              ((py_datamatrix_obj_t *) self_in)->y,
-                                              ((py_datamatrix_obj_t *) self_in)->w,
-                                              ((py_datamatrix_obj_t *) self_in)->h});
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_datamatrix_rect_obj, py_datamatrix_rect);
-
-mp_obj_t py_datamatrix_x(mp_obj_t self_in) {
-    return ((py_datamatrix_obj_t *) self_in)->x;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_datamatrix_x_obj, py_datamatrix_x);
-
-mp_obj_t py_datamatrix_y(mp_obj_t self_in) {
-    return ((py_datamatrix_obj_t *) self_in)->y;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_datamatrix_y_obj, py_datamatrix_y);
-
-mp_obj_t py_datamatrix_w(mp_obj_t self_in) {
-    return ((py_datamatrix_obj_t *) self_in)->w;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_datamatrix_w_obj, py_datamatrix_w);
-
-mp_obj_t py_datamatrix_h(mp_obj_t self_in) {
-    return ((py_datamatrix_obj_t *) self_in)->h;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_datamatrix_h_obj, py_datamatrix_h);
-
-mp_obj_t py_datamatrix_payload(mp_obj_t self_in) {
-    return ((py_datamatrix_obj_t *) self_in)->payload;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_datamatrix_payload_obj, py_datamatrix_payload);
-
-mp_obj_t py_datamatrix_rotation(mp_obj_t self_in) {
-    return ((py_datamatrix_obj_t *) self_in)->rotation;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_datamatrix_rotation_obj, py_datamatrix_rotation);
-
-mp_obj_t py_datamatrix_rows(mp_obj_t self_in) {
-    return ((py_datamatrix_obj_t *) self_in)->rows;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_datamatrix_rows_obj, py_datamatrix_rows);
-
-mp_obj_t py_datamatrix_columns(mp_obj_t self_in) {
-    return ((py_datamatrix_obj_t *) self_in)->columns;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_datamatrix_columns_obj, py_datamatrix_columns);
-
-mp_obj_t py_datamatrix_capacity(mp_obj_t self_in) {
-    return ((py_datamatrix_obj_t *) self_in)->capacity;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_datamatrix_capacity_obj, py_datamatrix_capacity);
-
-mp_obj_t py_datamatrix_padding(mp_obj_t self_in) {
-    return ((py_datamatrix_obj_t *) self_in)->padding;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_datamatrix_padding_obj, py_datamatrix_padding);
-
-static const mp_rom_map_elem_t py_datamatrix_locals_dict_table[] = {
-    { MP_ROM_QSTR(MP_QSTR_corners), MP_ROM_PTR(&py_datamatrix_corners_obj) },
-    { MP_ROM_QSTR(MP_QSTR_rect), MP_ROM_PTR(&py_datamatrix_rect_obj) },
-    { MP_ROM_QSTR(MP_QSTR_x), MP_ROM_PTR(&py_datamatrix_x_obj) },
-    { MP_ROM_QSTR(MP_QSTR_y), MP_ROM_PTR(&py_datamatrix_y_obj) },
-    { MP_ROM_QSTR(MP_QSTR_w), MP_ROM_PTR(&py_datamatrix_w_obj) },
-    { MP_ROM_QSTR(MP_QSTR_h), MP_ROM_PTR(&py_datamatrix_h_obj) },
-    { MP_ROM_QSTR(MP_QSTR_payload), MP_ROM_PTR(&py_datamatrix_payload_obj) },
-    { MP_ROM_QSTR(MP_QSTR_rotation), MP_ROM_PTR(&py_datamatrix_rotation_obj) },
-    { MP_ROM_QSTR(MP_QSTR_rows), MP_ROM_PTR(&py_datamatrix_rows_obj) },
-    { MP_ROM_QSTR(MP_QSTR_columns), MP_ROM_PTR(&py_datamatrix_columns_obj) },
-    { MP_ROM_QSTR(MP_QSTR_capacity), MP_ROM_PTR(&py_datamatrix_capacity_obj) },
-    { MP_ROM_QSTR(MP_QSTR_padding), MP_ROM_PTR(&py_datamatrix_padding_obj) }
-};
-
-static MP_DEFINE_CONST_DICT(py_datamatrix_locals_dict, py_datamatrix_locals_dict_table);
 
 static MP_DEFINE_CONST_OBJ_TYPE(
     py_datamatrix_type,
     MP_QSTR_datamatrix,
     MP_TYPE_FLAG_NONE,
-    print, py_datamatrix_print,
-    subscr, py_datamatrix_subscr,
-    locals_dict, &py_datamatrix_locals_dict
+    attr, py_datamatrix_attr,
+    print, py_datamatrix_print
     );
 
 static mp_obj_t py_image_find_datamatrices(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
@@ -4682,7 +4251,6 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(py_image_find_datamatrices_obj, 1, py_image_fi
 
 #if defined(IMLIB_ENABLE_BARCODES) && (!defined(OMV_NO_GPL))
 // BarCode Object //
-#define py_barcode_obj_size    8
 typedef struct py_barcode_obj {
     mp_obj_base_t base;
     mp_obj_t corners;
@@ -4690,7 +4258,7 @@ typedef struct py_barcode_obj {
 } py_barcode_obj_t;
 
 static void py_barcode_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
-    py_barcode_obj_t *self = self_in;
+    py_barcode_obj_t *self = MP_OBJ_TO_PTR(self_in);
     mp_printf(print,
               "{\"x\":%d, \"y\":%d, \"w\":%d, \"h\":%d, \"payload\":\"%s\","
               " \"type\":%d, \"rotation\":%f, \"quality\":%d}",
@@ -4704,108 +4272,54 @@ static void py_barcode_print(const mp_print_t *print, mp_obj_t self_in, mp_print
               mp_obj_get_int(self->quality));
 }
 
-static mp_obj_t py_barcode_subscr(mp_obj_t self_in, mp_obj_t index, mp_obj_t value) {
-    if (value == MP_OBJ_SENTINEL) {
-        // load
-        py_barcode_obj_t *self = self_in;
-        if (MP_OBJ_IS_TYPE(index, &mp_type_slice)) {
-            mp_bound_slice_t slice;
-            if (!mp_seq_get_fast_slice_indexes(py_barcode_obj_size, index, &slice)) {
-                mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("only slices with step=1 (aka None) are supported"));
-            }
-            mp_obj_tuple_t *result = mp_obj_new_tuple(slice.stop - slice.start, NULL);
-            mp_seq_copy(result->items, &(self->x) + slice.start, result->len, mp_obj_t);
-            return result;
-        }
-        switch (mp_get_index(self->base.type, py_barcode_obj_size, index, false)) {
-            case 0: return self->x;
-            case 1: return self->y;
-            case 2: return self->w;
-            case 3: return self->h;
-            case 4: return self->payload;
-            case 5: return self->type;
-            case 6: return self->rotation;
-            case 7: return self->quality;
+static void py_barcode_attr(mp_obj_t self_in, qstr attr, mp_obj_t *dest) {
+    py_barcode_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    if (dest[0] == MP_OBJ_NULL) {
+        switch (attr) {
+            case MP_QSTR_corners:
+                dest[0] = self->corners;
+                break;
+            case MP_QSTR_rect:
+                dest[0] = mp_obj_new_tuple(4, (mp_obj_t []) { self->x, self->y, self->w, self->h });
+                break;
+            case MP_QSTR_x:
+                dest[0] = self->x;
+                break;
+            case MP_QSTR_y:
+                dest[0] = self->y;
+                break;
+            case MP_QSTR_w:
+                dest[0] = self->w;
+                break;
+            case MP_QSTR_h:
+                dest[0] = self->h;
+                break;
+            case MP_QSTR_payload:
+                dest[0] = self->payload;
+                break;
+            case MP_QSTR_type:
+                dest[0] = self->type;
+                break;
+            case MP_QSTR_rotation:
+                dest[0] = self->rotation;
+                break;
+            case MP_QSTR_quality:
+                dest[0] = self->quality;
+                break;
+            default:
+                // Continue lookup in locals_dict.
+                dest[1] = MP_OBJ_SENTINEL;
+                break;
         }
     }
-    return MP_OBJ_NULL; // op not supported
 }
-
-mp_obj_t py_barcode_corners(mp_obj_t self_in) {
-    return ((py_barcode_obj_t *) self_in)->corners;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_barcode_corners_obj, py_barcode_corners);
-
-mp_obj_t py_barcode_rect(mp_obj_t self_in) {
-    return mp_obj_new_tuple(4, (mp_obj_t []) {((py_barcode_obj_t *) self_in)->x,
-                                              ((py_barcode_obj_t *) self_in)->y,
-                                              ((py_barcode_obj_t *) self_in)->w,
-                                              ((py_barcode_obj_t *) self_in)->h});
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_barcode_rect_obj, py_barcode_rect);
-
-mp_obj_t py_barcode_x(mp_obj_t self_in) {
-    return ((py_barcode_obj_t *) self_in)->x;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_barcode_x_obj, py_barcode_x);
-
-mp_obj_t py_barcode_y(mp_obj_t self_in) {
-    return ((py_barcode_obj_t *) self_in)->y;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_barcode_y_obj, py_barcode_y);
-
-mp_obj_t py_barcode_w(mp_obj_t self_in) {
-    return ((py_barcode_obj_t *) self_in)->w;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_barcode_w_obj, py_barcode_w);
-
-mp_obj_t py_barcode_h(mp_obj_t self_in) {
-    return ((py_barcode_obj_t *) self_in)->h;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_barcode_h_obj, py_barcode_h);
-
-mp_obj_t py_barcode_payload_fun(mp_obj_t self_in) {
-    return ((py_barcode_obj_t *) self_in)->payload;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_barcode_payload_fun_obj, py_barcode_payload_fun);
-
-mp_obj_t py_barcode_type_fun(mp_obj_t self_in) {
-    return ((py_barcode_obj_t *) self_in)->type;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_barcode_type_fun_obj, py_barcode_type_fun);
-
-mp_obj_t py_barcode_rotation_fun(mp_obj_t self_in) {
-    return ((py_barcode_obj_t *) self_in)->rotation;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_barcode_rotation_fun_obj, py_barcode_rotation_fun);
-
-mp_obj_t py_barcode_quality_fun(mp_obj_t self_in) {
-    return ((py_barcode_obj_t *) self_in)->quality;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_barcode_quality_fun_obj, py_barcode_quality_fun);
-
-static const mp_rom_map_elem_t py_barcode_locals_dict_table[] = {
-    { MP_ROM_QSTR(MP_QSTR_corners), MP_ROM_PTR(&py_barcode_corners_obj) },
-    { MP_ROM_QSTR(MP_QSTR_rect), MP_ROM_PTR(&py_barcode_rect_obj) },
-    { MP_ROM_QSTR(MP_QSTR_x), MP_ROM_PTR(&py_barcode_x_obj) },
-    { MP_ROM_QSTR(MP_QSTR_y), MP_ROM_PTR(&py_barcode_y_obj) },
-    { MP_ROM_QSTR(MP_QSTR_w), MP_ROM_PTR(&py_barcode_w_obj) },
-    { MP_ROM_QSTR(MP_QSTR_h), MP_ROM_PTR(&py_barcode_h_obj) },
-    { MP_ROM_QSTR(MP_QSTR_payload), MP_ROM_PTR(&py_barcode_payload_fun_obj) },
-    { MP_ROM_QSTR(MP_QSTR_type), MP_ROM_PTR(&py_barcode_type_fun_obj) },
-    { MP_ROM_QSTR(MP_QSTR_rotation), MP_ROM_PTR(&py_barcode_rotation_fun_obj) },
-    { MP_ROM_QSTR(MP_QSTR_quality), MP_ROM_PTR(&py_barcode_quality_fun_obj) }
-};
-
-static MP_DEFINE_CONST_DICT(py_barcode_locals_dict, py_barcode_locals_dict_table);
 
 static MP_DEFINE_CONST_OBJ_TYPE(
     py_barcode_type,
     MP_QSTR_barcode,
     MP_TYPE_FLAG_NONE,
-    print, py_barcode_print,
-    subscr, py_barcode_subscr,
-    locals_dict, &py_barcode_locals_dict
+    attr, py_barcode_attr,
+    print, py_barcode_print
     );
 
 static mp_obj_t py_image_find_barcodes(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
@@ -4861,14 +4375,13 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(py_image_find_barcodes_obj, 1, py_image_find_b
 
 #ifdef IMLIB_ENABLE_FIND_DISPLACEMENT
 // Displacement Object //
-#define py_displacement_obj_size    5
 typedef struct py_displacement_obj {
     mp_obj_base_t base;
     mp_obj_t x_translation, y_translation, rotation, scale, response;
 } py_displacement_obj_t;
 
 static void py_displacement_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
-    py_displacement_obj_t *self = self_in;
+    py_displacement_obj_t *self = MP_OBJ_TO_PTR(self_in);
     mp_printf(print,
               "{\"x_translation\":%f, \"y_translation\":%f, \"rotation\":%f, \"scale\":%f, \"response\":%f}",
               mp_obj_get_float_to_d(self->x_translation),
@@ -4878,72 +4391,39 @@ static void py_displacement_print(const mp_print_t *print, mp_obj_t self_in, mp_
               mp_obj_get_float_to_d(self->response));
 }
 
-static mp_obj_t py_displacement_subscr(mp_obj_t self_in, mp_obj_t index, mp_obj_t value) {
-    if (value == MP_OBJ_SENTINEL) {
-        // load
-        py_displacement_obj_t *self = self_in;
-        if (MP_OBJ_IS_TYPE(index, &mp_type_slice)) {
-            mp_bound_slice_t slice;
-            if (!mp_seq_get_fast_slice_indexes(py_displacement_obj_size, index, &slice)) {
-                mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("only slices with step=1 (aka None) are supported"));
-            }
-            mp_obj_tuple_t *result = mp_obj_new_tuple(slice.stop - slice.start, NULL);
-            mp_seq_copy(result->items, &(self->x_translation) + slice.start, result->len, mp_obj_t);
-            return result;
-        }
-        switch (mp_get_index(self->base.type, py_displacement_obj_size, index, false)) {
-            case 0: return self->x_translation;
-            case 1: return self->y_translation;
-            case 2: return self->rotation;
-            case 3: return self->scale;
-            case 4: return self->response;
+static void py_displacement_attr(mp_obj_t self_in, qstr attr, mp_obj_t *dest) {
+    py_displacement_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    if (dest[0] == MP_OBJ_NULL) {
+        switch (attr) {
+            case MP_QSTR_x_translation:
+                dest[0] = self->x_translation;
+                break;
+            case MP_QSTR_y_translation:
+                dest[0] = self->y_translation;
+                break;
+            case MP_QSTR_rotation:
+                dest[0] = self->rotation;
+                break;
+            case MP_QSTR_scale:
+                dest[0] = self->scale;
+                break;
+            case MP_QSTR_response:
+                dest[0] = self->response;
+                break;
+            default:
+                // Continue lookup in locals_dict.
+                dest[1] = MP_OBJ_SENTINEL;
+                break;
         }
     }
-    return MP_OBJ_NULL; // op not supported
 }
-
-mp_obj_t py_displacement_x_translation(mp_obj_t self_in) {
-    return ((py_displacement_obj_t *) self_in)->x_translation;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_displacement_x_translation_obj, py_displacement_x_translation);
-
-mp_obj_t py_displacement_y_translation(mp_obj_t self_in) {
-    return ((py_displacement_obj_t *) self_in)->y_translation;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_displacement_y_translation_obj, py_displacement_y_translation);
-
-mp_obj_t py_displacement_rotation(mp_obj_t self_in) {
-    return ((py_displacement_obj_t *) self_in)->rotation;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_displacement_rotation_obj, py_displacement_rotation);
-
-mp_obj_t py_displacement_scale(mp_obj_t self_in) {
-    return ((py_displacement_obj_t *) self_in)->scale;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_displacement_scale_obj, py_displacement_scale);
-
-mp_obj_t py_displacement_response(mp_obj_t self_in) {
-    return ((py_displacement_obj_t *) self_in)->response;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_displacement_response_obj, py_displacement_response);
-
-static const mp_rom_map_elem_t py_displacement_locals_dict_table[] = {
-    { MP_ROM_QSTR(MP_QSTR_x_translation), MP_ROM_PTR(&py_displacement_x_translation_obj) },
-    { MP_ROM_QSTR(MP_QSTR_y_translation), MP_ROM_PTR(&py_displacement_y_translation_obj) },
-    { MP_ROM_QSTR(MP_QSTR_rotation), MP_ROM_PTR(&py_displacement_rotation_obj) },
-    { MP_ROM_QSTR(MP_QSTR_scale), MP_ROM_PTR(&py_displacement_scale_obj) },
-    { MP_ROM_QSTR(MP_QSTR_response), MP_ROM_PTR(&py_displacement_response_obj) }
-};
-
-static MP_DEFINE_CONST_DICT(py_displacement_locals_dict, py_displacement_locals_dict_table);
 
 static MP_DEFINE_CONST_OBJ_TYPE(
     py_displacement_type,
     MP_QSTR_displacement,
     MP_TYPE_FLAG_NONE,
-    print, py_displacement_print,
-    subscr, py_displacement_subscr,
-    locals_dict, &py_displacement_locals_dict
+    attr, py_displacement_attr,
+    print, py_displacement_print
     );
 
 static mp_obj_t py_image_find_displacement(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {

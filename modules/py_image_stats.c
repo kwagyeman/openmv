@@ -45,14 +45,13 @@
 
 #ifdef IMLIB_ENABLE_GET_SIMILARITY
 // Similarity Object //
-#define py_similarity_obj_size    4
 typedef struct py_similarity_obj {
     mp_obj_base_t base;
     mp_obj_t avg, std, min, max;
 } py_similarity_obj_t;
 
 static void py_similarity_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
-    py_similarity_obj_t *self = self_in;
+    py_similarity_obj_t *self = MP_OBJ_TO_PTR(self_in);
     mp_printf(print,
               "{\"mean\":%f, \"stdev\":%f, \"min\":%f, \"max\":%f}",
               mp_obj_get_float_to_d(self->avg),
@@ -61,65 +60,36 @@ static void py_similarity_print(const mp_print_t *print, mp_obj_t self_in, mp_pr
               mp_obj_get_float_to_d(self->max));
 }
 
-static mp_obj_t py_similarity_subscr(mp_obj_t self_in, mp_obj_t index, mp_obj_t value) {
-    if (value == MP_OBJ_SENTINEL) {
-        // load
-        py_similarity_obj_t *self = self_in;
-        if (MP_OBJ_IS_TYPE(index, &mp_type_slice)) {
-            mp_bound_slice_t slice;
-            if (!mp_seq_get_fast_slice_indexes(py_similarity_obj_size, index, &slice)) {
-                mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("only slices with step=1 (aka None) are supported"));
-            }
-            mp_obj_tuple_t *result = mp_obj_new_tuple(slice.stop - slice.start, NULL);
-            mp_seq_copy(result->items, &(self->avg) + slice.start, result->len, mp_obj_t);
-            return result;
-        }
-        switch (mp_get_index(self->base.type, py_similarity_obj_size, index, false)) {
-            case 0: return self->avg;
-            case 1: return self->std;
-            case 2: return self->min;
-            case 3: return self->max;
+static void py_similarity_attr(mp_obj_t self_in, qstr attr, mp_obj_t *dest) {
+    py_similarity_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    if (dest[0] == MP_OBJ_NULL) {
+        switch (attr) {
+            case MP_QSTR_mean:
+                dest[0] = self->avg;
+                break;
+            case MP_QSTR_stdev:
+                dest[0] = self->std;
+                break;
+            case MP_QSTR_min:
+                dest[0] = self->min;
+                break;
+            case MP_QSTR_max:
+                dest[0] = self->max;
+                break;
+            default:
+                // Continue lookup in locals_dict.
+                dest[1] = MP_OBJ_SENTINEL;
+                break;
         }
     }
-    return MP_OBJ_NULL; // op not supported
 }
-
-mp_obj_t py_similarity_mean(mp_obj_t self_in) {
-    return ((py_similarity_obj_t *) self_in)->avg;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_similarity_mean_obj, py_similarity_mean);
-
-mp_obj_t py_similarity_stdev(mp_obj_t self_in) {
-    return ((py_similarity_obj_t *) self_in)->std;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_similarity_stdev_obj, py_similarity_stdev);
-
-mp_obj_t py_similarity_min(mp_obj_t self_in) {
-    return ((py_similarity_obj_t *) self_in)->min;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_similarity_min_obj, py_similarity_min);
-
-mp_obj_t py_similarity_max(mp_obj_t self_in) {
-    return ((py_similarity_obj_t *) self_in)->max;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_similarity_max_obj, py_similarity_max);
-
-static const mp_rom_map_elem_t py_similarity_locals_dict_table[] = {
-    { MP_ROM_QSTR(MP_QSTR_mean), MP_ROM_PTR(&py_similarity_mean_obj) },
-    { MP_ROM_QSTR(MP_QSTR_stdev), MP_ROM_PTR(&py_similarity_stdev_obj) },
-    { MP_ROM_QSTR(MP_QSTR_min), MP_ROM_PTR(&py_similarity_min_obj) },
-    { MP_ROM_QSTR(MP_QSTR_max), MP_ROM_PTR(&py_similarity_max_obj) }
-};
-
-static MP_DEFINE_CONST_DICT(py_similarity_locals_dict, py_similarity_locals_dict_table);
 
 static MP_DEFINE_CONST_OBJ_TYPE(
     py_similarity_type,
     MP_QSTR_similarity,
     MP_TYPE_FLAG_NONE,
-    print, py_similarity_print,
-    subscr, py_similarity_subscr,
-    locals_dict, &py_similarity_locals_dict
+    attr, py_similarity_attr,
+    print, py_similarity_print
     );
 
 static mp_obj_t py_image_get_similarity(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
@@ -183,7 +153,6 @@ MP_DEFINE_CONST_FUN_OBJ_KW(py_image_get_similarity_obj, 1, py_image_get_similari
 #endif // IMLIB_ENABLE_GET_SIMILARITY
 
 // Statistics Object //
-#define py_statistics_obj_size    24
 typedef struct py_statistics_obj {
     mp_obj_base_t base;
     pixformat_t pixfmt;
@@ -193,7 +162,7 @@ typedef struct py_statistics_obj {
 } py_statistics_obj_t;
 
 static void py_statistics_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
-    py_statistics_obj_t *self = self_in;
+    py_statistics_obj_t *self = MP_OBJ_TO_PTR(self_in);
     switch (self->pixfmt) {
         case PIXFORMAT_BINARY: {
             mp_printf(print,
@@ -259,257 +228,107 @@ static void py_statistics_print(const mp_print_t *print, mp_obj_t self_in, mp_pr
     }
 }
 
-static mp_obj_t py_statistics_subscr(mp_obj_t self_in, mp_obj_t index, mp_obj_t value) {
-    if (value == MP_OBJ_SENTINEL) {
-        // load
-        py_statistics_obj_t *self = self_in;
-        if (MP_OBJ_IS_TYPE(index, &mp_type_slice)) {
-            mp_bound_slice_t slice;
-            if (!mp_seq_get_fast_slice_indexes(py_statistics_obj_size, index, &slice)) {
-                mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("only slices with step=1 (aka None) are supported"));
-            }
-            mp_obj_tuple_t *result = mp_obj_new_tuple(slice.stop - slice.start, NULL);
-            mp_seq_copy(result->items, &(self->LMean) + slice.start, result->len, mp_obj_t);
-            return result;
-        }
-        switch (mp_get_index(self->base.type, py_statistics_obj_size, index, false)) {
-            case 0: return self->LMean;
-            case 1: return self->LMedian;
-            case 2: return self->LMode;
-            case 3: return self->LSTDev;
-            case 4: return self->LMin;
-            case 5: return self->LMax;
-            case 6: return self->LLQ;
-            case 7: return self->LUQ;
-            case 8: return self->AMean;
-            case 9: return self->AMedian;
-            case 10: return self->AMode;
-            case 11: return self->ASTDev;
-            case 12: return self->AMin;
-            case 13: return self->AMax;
-            case 14: return self->ALQ;
-            case 15: return self->AUQ;
-            case 16: return self->BMean;
-            case 17: return self->BMedian;
-            case 18: return self->BMode;
-            case 19: return self->BSTDev;
-            case 20: return self->BMin;
-            case 21: return self->BMax;
-            case 22: return self->BLQ;
-            case 23: return self->BUQ;
+static void py_statistics_attr(mp_obj_t self_in, qstr attr, mp_obj_t *dest) {
+    py_statistics_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    if (dest[0] == MP_OBJ_NULL) {
+        switch (attr) {
+            case MP_QSTR_mean:
+            case MP_QSTR_l_mean:
+                dest[0] = self->LMean;
+                break;
+            case MP_QSTR_median:
+            case MP_QSTR_l_median:
+                dest[0] = self->LMedian;
+                break;
+            case MP_QSTR_mode:
+            case MP_QSTR_l_mode:
+                dest[0] = self->LMode;
+                break;
+            case MP_QSTR_stdev:
+            case MP_QSTR_l_stdev:
+                dest[0] = self->LSTDev;
+                break;
+            case MP_QSTR_min:
+            case MP_QSTR_l_min:
+                dest[0] = self->LMin;
+                break;
+            case MP_QSTR_max:
+            case MP_QSTR_l_max:
+                dest[0] = self->LMax;
+                break;
+            case MP_QSTR_lq:
+            case MP_QSTR_l_lq:
+                dest[0] = self->LLQ;
+                break;
+            case MP_QSTR_uq:
+            case MP_QSTR_l_uq:
+                dest[0] = self->LUQ;
+                break;
+            case MP_QSTR_a_mean:
+                dest[0] = self->AMean;
+                break;
+            case MP_QSTR_a_median:
+                dest[0] = self->AMedian;
+                break;
+            case MP_QSTR_a_mode:
+                dest[0] = self->AMode;
+                break;
+            case MP_QSTR_a_stdev:
+                dest[0] = self->ASTDev;
+                break;
+            case MP_QSTR_a_min:
+                dest[0] = self->AMin;
+                break;
+            case MP_QSTR_a_max:
+                dest[0] = self->AMax;
+                break;
+            case MP_QSTR_a_lq:
+                dest[0] = self->ALQ;
+                break;
+            case MP_QSTR_a_uq:
+                dest[0] = self->AUQ;
+                break;
+            case MP_QSTR_b_mean:
+                dest[0] = self->BMean;
+                break;
+            case MP_QSTR_b_median:
+                dest[0] = self->BMedian;
+                break;
+            case MP_QSTR_b_mode:
+                dest[0] = self->BMode;
+                break;
+            case MP_QSTR_b_stdev:
+                dest[0] = self->BSTDev;
+                break;
+            case MP_QSTR_b_min:
+                dest[0] = self->BMin;
+                break;
+            case MP_QSTR_b_max:
+                dest[0] = self->BMax;
+                break;
+            case MP_QSTR_b_lq:
+                dest[0] = self->BLQ;
+                break;
+            case MP_QSTR_b_uq:
+                dest[0] = self->BUQ;
+                break;
+            default:
+                // Continue lookup in locals_dict.
+                dest[1] = MP_OBJ_SENTINEL;
+                break;
         }
     }
-    return MP_OBJ_NULL; // op not supported
 }
-
-mp_obj_t py_statistics_mean(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->LMean;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_mean_obj, py_statistics_mean);
-
-mp_obj_t py_statistics_median(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->LMedian;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_median_obj, py_statistics_median);
-
-mp_obj_t py_statistics_mode(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->LMode;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_mode_obj, py_statistics_mode);
-
-mp_obj_t py_statistics_stdev(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->LSTDev;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_stdev_obj, py_statistics_stdev);
-
-mp_obj_t py_statistics_min(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->LMin;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_min_obj, py_statistics_min);
-
-mp_obj_t py_statistics_max(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->LMax;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_max_obj, py_statistics_max);
-
-mp_obj_t py_statistics_lq(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->LLQ;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_lq_obj, py_statistics_lq);
-
-mp_obj_t py_statistics_uq(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->LUQ;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_uq_obj, py_statistics_uq);
-
-mp_obj_t py_statistics_l_mean(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->LMean;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_l_mean_obj, py_statistics_l_mean);
-
-mp_obj_t py_statistics_l_median(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->LMedian;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_l_median_obj, py_statistics_l_median);
-
-mp_obj_t py_statistics_l_mode(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->LMode;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_l_mode_obj, py_statistics_l_mode);
-
-mp_obj_t py_statistics_l_stdev(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->LSTDev;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_l_stdev_obj, py_statistics_l_stdev);
-
-mp_obj_t py_statistics_l_min(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->LMin;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_l_min_obj, py_statistics_l_min);
-
-mp_obj_t py_statistics_l_max(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->LMax;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_l_max_obj, py_statistics_l_max);
-
-mp_obj_t py_statistics_l_lq(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->LLQ;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_l_lq_obj, py_statistics_l_lq);
-
-mp_obj_t py_statistics_l_uq(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->LUQ;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_l_uq_obj, py_statistics_l_uq);
-
-mp_obj_t py_statistics_a_mean(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->AMean;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_a_mean_obj, py_statistics_a_mean);
-
-mp_obj_t py_statistics_a_median(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->AMedian;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_a_median_obj, py_statistics_a_median);
-
-mp_obj_t py_statistics_a_mode(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->AMode;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_a_mode_obj, py_statistics_a_mode);
-
-mp_obj_t py_statistics_a_stdev(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->ASTDev;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_a_stdev_obj, py_statistics_a_stdev);
-
-mp_obj_t py_statistics_a_min(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->AMin;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_a_min_obj, py_statistics_a_min);
-
-mp_obj_t py_statistics_a_max(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->AMax;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_a_max_obj, py_statistics_a_max);
-
-mp_obj_t py_statistics_a_lq(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->ALQ;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_a_lq_obj, py_statistics_a_lq);
-
-mp_obj_t py_statistics_a_uq(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->AUQ;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_a_uq_obj, py_statistics_a_uq);
-
-mp_obj_t py_statistics_b_mean(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->BMean;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_b_mean_obj, py_statistics_b_mean);
-
-mp_obj_t py_statistics_b_median(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->BMedian;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_b_median_obj, py_statistics_b_median);
-
-mp_obj_t py_statistics_b_mode(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->BMode;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_b_mode_obj, py_statistics_b_mode);
-
-mp_obj_t py_statistics_b_stdev(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->BSTDev;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_b_stdev_obj, py_statistics_b_stdev);
-
-mp_obj_t py_statistics_b_min(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->BMin;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_b_min_obj, py_statistics_b_min);
-
-mp_obj_t py_statistics_b_max(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->BMax;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_b_max_obj, py_statistics_b_max);
-
-mp_obj_t py_statistics_b_lq(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->BLQ;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_b_lq_obj, py_statistics_b_lq);
-
-mp_obj_t py_statistics_b_uq(mp_obj_t self_in) {
-    return ((py_statistics_obj_t *) self_in)->BUQ;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_statistics_b_uq_obj, py_statistics_b_uq);
-
-static const mp_rom_map_elem_t py_statistics_locals_dict_table[] = {
-    { MP_ROM_QSTR(MP_QSTR_mean), MP_ROM_PTR(&py_statistics_mean_obj) },
-    { MP_ROM_QSTR(MP_QSTR_median), MP_ROM_PTR(&py_statistics_median_obj) },
-    { MP_ROM_QSTR(MP_QSTR_mode), MP_ROM_PTR(&py_statistics_mode_obj) },
-    { MP_ROM_QSTR(MP_QSTR_stdev), MP_ROM_PTR(&py_statistics_stdev_obj) },
-    { MP_ROM_QSTR(MP_QSTR_min), MP_ROM_PTR(&py_statistics_min_obj) },
-    { MP_ROM_QSTR(MP_QSTR_max), MP_ROM_PTR(&py_statistics_max_obj) },
-    { MP_ROM_QSTR(MP_QSTR_lq), MP_ROM_PTR(&py_statistics_lq_obj) },
-    { MP_ROM_QSTR(MP_QSTR_uq), MP_ROM_PTR(&py_statistics_uq_obj) },
-    { MP_ROM_QSTR(MP_QSTR_l_mean), MP_ROM_PTR(&py_statistics_l_mean_obj) },
-    { MP_ROM_QSTR(MP_QSTR_l_median), MP_ROM_PTR(&py_statistics_l_median_obj) },
-    { MP_ROM_QSTR(MP_QSTR_l_mode), MP_ROM_PTR(&py_statistics_l_mode_obj) },
-    { MP_ROM_QSTR(MP_QSTR_l_stdev), MP_ROM_PTR(&py_statistics_l_stdev_obj) },
-    { MP_ROM_QSTR(MP_QSTR_l_min), MP_ROM_PTR(&py_statistics_l_min_obj) },
-    { MP_ROM_QSTR(MP_QSTR_l_max), MP_ROM_PTR(&py_statistics_l_max_obj) },
-    { MP_ROM_QSTR(MP_QSTR_l_lq), MP_ROM_PTR(&py_statistics_l_lq_obj) },
-    { MP_ROM_QSTR(MP_QSTR_l_uq), MP_ROM_PTR(&py_statistics_l_uq_obj) },
-    { MP_ROM_QSTR(MP_QSTR_a_mean), MP_ROM_PTR(&py_statistics_a_mean_obj) },
-    { MP_ROM_QSTR(MP_QSTR_a_median), MP_ROM_PTR(&py_statistics_a_median_obj) },
-    { MP_ROM_QSTR(MP_QSTR_a_mode), MP_ROM_PTR(&py_statistics_a_mode_obj) },
-    { MP_ROM_QSTR(MP_QSTR_a_stdev), MP_ROM_PTR(&py_statistics_a_stdev_obj) },
-    { MP_ROM_QSTR(MP_QSTR_a_min), MP_ROM_PTR(&py_statistics_a_min_obj) },
-    { MP_ROM_QSTR(MP_QSTR_a_max), MP_ROM_PTR(&py_statistics_a_max_obj) },
-    { MP_ROM_QSTR(MP_QSTR_a_lq), MP_ROM_PTR(&py_statistics_a_lq_obj) },
-    { MP_ROM_QSTR(MP_QSTR_a_uq), MP_ROM_PTR(&py_statistics_a_uq_obj) },
-    { MP_ROM_QSTR(MP_QSTR_b_mean), MP_ROM_PTR(&py_statistics_b_mean_obj) },
-    { MP_ROM_QSTR(MP_QSTR_b_median), MP_ROM_PTR(&py_statistics_b_median_obj) },
-    { MP_ROM_QSTR(MP_QSTR_b_mode), MP_ROM_PTR(&py_statistics_b_mode_obj) },
-    { MP_ROM_QSTR(MP_QSTR_b_stdev), MP_ROM_PTR(&py_statistics_b_stdev_obj) },
-    { MP_ROM_QSTR(MP_QSTR_b_min), MP_ROM_PTR(&py_statistics_b_min_obj) },
-    { MP_ROM_QSTR(MP_QSTR_b_max), MP_ROM_PTR(&py_statistics_b_max_obj) },
-    { MP_ROM_QSTR(MP_QSTR_b_lq), MP_ROM_PTR(&py_statistics_b_lq_obj) },
-    { MP_ROM_QSTR(MP_QSTR_b_uq), MP_ROM_PTR(&py_statistics_b_uq_obj) }
-};
-
-static MP_DEFINE_CONST_DICT(py_statistics_locals_dict, py_statistics_locals_dict_table);
 
 static MP_DEFINE_CONST_OBJ_TYPE(
     py_statistics_type,
     MP_QSTR_statistics,
     MP_TYPE_FLAG_NONE,
-    print, py_statistics_print,
-    subscr, py_statistics_subscr,
-    locals_dict, &py_statistics_locals_dict
+    attr, py_statistics_attr,
+    print, py_statistics_print
     );
 
 // Percentile Object //
-#define py_percentile_obj_size    3
 typedef struct py_percentile_obj {
     mp_obj_base_t base;
     pixformat_t pixfmt;
@@ -517,7 +336,7 @@ typedef struct py_percentile_obj {
 } py_percentile_obj_t;
 
 static void py_percentile_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
-    py_percentile_obj_t *self = self_in;
+    py_percentile_obj_t *self = MP_OBJ_TO_PTR(self_in);
     switch (self->pixfmt) {
         case PIXFORMAT_BINARY: {
             mp_printf(print, "{\"value\":%d}",
@@ -543,68 +362,37 @@ static void py_percentile_print(const mp_print_t *print, mp_obj_t self_in, mp_pr
     }
 }
 
-static mp_obj_t py_percentile_subscr(mp_obj_t self_in, mp_obj_t index, mp_obj_t value) {
-    if (value == MP_OBJ_SENTINEL) {
-        // load
-        py_percentile_obj_t *self = self_in;
-        if (MP_OBJ_IS_TYPE(index, &mp_type_slice)) {
-            mp_bound_slice_t slice;
-            if (!mp_seq_get_fast_slice_indexes(py_percentile_obj_size, index, &slice)) {
-                mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("only slices with step=1 (aka None) are supported"));
-            }
-            mp_obj_tuple_t *result = mp_obj_new_tuple(slice.stop - slice.start, NULL);
-            mp_seq_copy(result->items, &(self->LValue) + slice.start, result->len, mp_obj_t);
-            return result;
-        }
-        switch (mp_get_index(self->base.type, py_percentile_obj_size, index, false)) {
-            case 0: return self->LValue;
-            case 1: return self->AValue;
-            case 2: return self->BValue;
+static void py_percentile_attr(mp_obj_t self_in, qstr attr, mp_obj_t *dest) {
+    py_percentile_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    if (dest[0] == MP_OBJ_NULL) {
+        switch (attr) {
+            case MP_QSTR_value:
+            case MP_QSTR_l_value:
+                dest[0] = self->LValue;
+                break;
+            case MP_QSTR_a_value:
+                dest[0] = self->AValue;
+                break;
+            case MP_QSTR_b_value:
+                dest[0] = self->BValue;
+                break;
+            default:
+                // Continue lookup in locals_dict.
+                dest[1] = MP_OBJ_SENTINEL;
+                break;
         }
     }
-    return MP_OBJ_NULL; // op not supported
 }
-
-mp_obj_t py_percentile_value(mp_obj_t self_in) {
-    return ((py_percentile_obj_t *) self_in)->LValue;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_percentile_value_obj, py_percentile_value);
-
-mp_obj_t py_percentile_l_value(mp_obj_t self_in) {
-    return ((py_percentile_obj_t *) self_in)->LValue;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_percentile_l_value_obj, py_percentile_l_value);
-
-mp_obj_t py_percentile_a_value(mp_obj_t self_in) {
-    return ((py_percentile_obj_t *) self_in)->AValue;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_percentile_a_value_obj, py_percentile_a_value);
-
-mp_obj_t py_percentile_b_value(mp_obj_t self_in) {
-    return ((py_percentile_obj_t *) self_in)->BValue;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_percentile_b_value_obj, py_percentile_b_value);
-
-static const mp_rom_map_elem_t py_percentile_locals_dict_table[] = {
-    { MP_ROM_QSTR(MP_QSTR_value), MP_ROM_PTR(&py_percentile_value_obj) },
-    { MP_ROM_QSTR(MP_QSTR_l_value), MP_ROM_PTR(&py_percentile_l_value_obj) },
-    { MP_ROM_QSTR(MP_QSTR_a_value), MP_ROM_PTR(&py_percentile_a_value_obj) },
-    { MP_ROM_QSTR(MP_QSTR_b_value), MP_ROM_PTR(&py_percentile_b_value_obj) }
-};
-
-static MP_DEFINE_CONST_DICT(py_percentile_locals_dict, py_percentile_locals_dict_table);
 
 static MP_DEFINE_CONST_OBJ_TYPE(
     py_percentile_type,
     MP_QSTR_percentile,
     MP_TYPE_FLAG_NONE,
-    print, py_percentile_print,
-    subscr, py_percentile_subscr,
-    locals_dict, &py_percentile_locals_dict
+    attr, py_percentile_attr,
+    print, py_percentile_print
     );
 
 // Threshold Object //
-#define py_threshold_obj_size    3
 typedef struct py_threshold_obj {
     mp_obj_base_t base;
     pixformat_t pixfmt;
@@ -612,7 +400,7 @@ typedef struct py_threshold_obj {
 } py_threshold_obj_t;
 
 static void py_threshold_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
-    py_threshold_obj_t *self = self_in;
+    py_threshold_obj_t *self = MP_OBJ_TO_PTR(self_in);
     switch (self->pixfmt) {
         case PIXFORMAT_BINARY: {
             mp_printf(print, "{\"value\":%d}",
@@ -638,68 +426,37 @@ static void py_threshold_print(const mp_print_t *print, mp_obj_t self_in, mp_pri
     }
 }
 
-static mp_obj_t py_threshold_subscr(mp_obj_t self_in, mp_obj_t index, mp_obj_t value) {
-    if (value == MP_OBJ_SENTINEL) {
-        // load
-        py_threshold_obj_t *self = self_in;
-        if (MP_OBJ_IS_TYPE(index, &mp_type_slice)) {
-            mp_bound_slice_t slice;
-            if (!mp_seq_get_fast_slice_indexes(py_threshold_obj_size, index, &slice)) {
-                mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("only slices with step=1 (aka None) are supported"));
-            }
-            mp_obj_tuple_t *result = mp_obj_new_tuple(slice.stop - slice.start, NULL);
-            mp_seq_copy(result->items, &(self->LValue) + slice.start, result->len, mp_obj_t);
-            return result;
-        }
-        switch (mp_get_index(self->base.type, py_threshold_obj_size, index, false)) {
-            case 0: return self->LValue;
-            case 1: return self->AValue;
-            case 2: return self->BValue;
+static void py_threshold_attr(mp_obj_t self_in, qstr attr, mp_obj_t *dest) {
+    py_threshold_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    if (dest[0] == MP_OBJ_NULL) {
+        switch (attr) {
+            case MP_QSTR_value:
+            case MP_QSTR_l_value:
+                dest[0] = self->LValue;
+                break;
+            case MP_QSTR_a_value:
+                dest[0] = self->AValue;
+                break;
+            case MP_QSTR_b_value:
+                dest[0] = self->BValue;
+                break;
+            default:
+                // Continue lookup in locals_dict.
+                dest[1] = MP_OBJ_SENTINEL;
+                break;
         }
     }
-    return MP_OBJ_NULL; // op not supported
 }
-
-mp_obj_t py_threshold_value(mp_obj_t self_in) {
-    return ((py_threshold_obj_t *) self_in)->LValue;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_threshold_value_obj, py_threshold_value);
-
-mp_obj_t py_threshold_l_value(mp_obj_t self_in) {
-    return ((py_threshold_obj_t *) self_in)->LValue;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_threshold_l_value_obj, py_threshold_l_value);
-
-mp_obj_t py_threshold_a_value(mp_obj_t self_in) {
-    return ((py_threshold_obj_t *) self_in)->AValue;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_threshold_a_value_obj, py_threshold_a_value);
-
-mp_obj_t py_threshold_b_value(mp_obj_t self_in) {
-    return ((py_threshold_obj_t *) self_in)->BValue;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_threshold_b_value_obj, py_threshold_b_value);
-
-static const mp_rom_map_elem_t py_threshold_locals_dict_table[] = {
-    { MP_ROM_QSTR(MP_QSTR_value), MP_ROM_PTR(&py_threshold_value_obj) },
-    { MP_ROM_QSTR(MP_QSTR_l_value), MP_ROM_PTR(&py_threshold_l_value_obj) },
-    { MP_ROM_QSTR(MP_QSTR_a_value), MP_ROM_PTR(&py_threshold_a_value_obj) },
-    { MP_ROM_QSTR(MP_QSTR_b_value), MP_ROM_PTR(&py_threshold_b_value_obj) }
-};
-
-static MP_DEFINE_CONST_DICT(py_threshold_locals_dict, py_threshold_locals_dict_table);
 
 static MP_DEFINE_CONST_OBJ_TYPE(
     py_threshold_type,
     MP_QSTR_threshold,
     MP_TYPE_FLAG_NONE,
-    print, py_threshold_print,
-    subscr, py_threshold_subscr,
-    locals_dict, &py_threshold_locals_dict
+    attr, py_threshold_attr,
+    print, py_threshold_print
     );
 
 // Histogram Object //
-#define py_histogram_obj_size    3
 typedef struct py_histogram_obj {
     mp_obj_base_t base;
     pixformat_t pixfmt;
@@ -707,7 +464,7 @@ typedef struct py_histogram_obj {
 } py_histogram_obj_t;
 
 static void py_histogram_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
-    py_histogram_obj_t *self = self_in;
+    py_histogram_obj_t *self = MP_OBJ_TO_PTR(self_in);
     switch (self->pixfmt) {
         case PIXFORMAT_BINARY: {
             mp_printf(print, "{\"bins\":");
@@ -738,47 +495,27 @@ static void py_histogram_print(const mp_print_t *print, mp_obj_t self_in, mp_pri
     }
 }
 
-static mp_obj_t py_histogram_subscr(mp_obj_t self_in, mp_obj_t index, mp_obj_t value) {
-    if (value == MP_OBJ_SENTINEL) {
-        // load
-        py_histogram_obj_t *self = self_in;
-        if (MP_OBJ_IS_TYPE(index, &mp_type_slice)) {
-            mp_bound_slice_t slice;
-            if (!mp_seq_get_fast_slice_indexes(py_histogram_obj_size, index, &slice)) {
-                mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("only slices with step=1 (aka None) are supported"));
-            }
-            mp_obj_tuple_t *result = mp_obj_new_tuple(slice.stop - slice.start, NULL);
-            mp_seq_copy(result->items, &(self->LBins) + slice.start, result->len, mp_obj_t);
-            return result;
-        }
-        switch (mp_get_index(self->base.type, py_histogram_obj_size, index, false)) {
-            case 0: return self->LBins;
-            case 1: return self->ABins;
-            case 2: return self->BBins;
+static void py_histogram_attr(mp_obj_t self_in, qstr attr, mp_obj_t *dest) {
+    py_histogram_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    if (dest[0] == MP_OBJ_NULL) {
+        switch (attr) {
+            case MP_QSTR_bins:
+            case MP_QSTR_l_bins:
+                dest[0] = self->LBins;
+                break;
+            case MP_QSTR_a_bins:
+                dest[0] = self->ABins;
+                break;
+            case MP_QSTR_b_bins:
+                dest[0] = self->BBins;
+                break;
+            default:
+                // Continue lookup in locals_dict.
+                dest[1] = MP_OBJ_SENTINEL;
+                break;
         }
     }
-    return MP_OBJ_NULL; // op not supported
 }
-
-mp_obj_t py_histogram_bins(mp_obj_t self_in) {
-    return ((py_histogram_obj_t *) self_in)->LBins;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_histogram_bins_obj, py_histogram_bins);
-
-mp_obj_t py_histogram_l_bins(mp_obj_t self_in) {
-    return ((py_histogram_obj_t *) self_in)->LBins;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_histogram_l_bins_obj, py_histogram_l_bins);
-
-mp_obj_t py_histogram_a_bins(mp_obj_t self_in) {
-    return ((py_histogram_obj_t *) self_in)->ABins;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_histogram_a_bins_obj, py_histogram_a_bins);
-
-mp_obj_t py_histogram_b_bins(mp_obj_t self_in) {
-    return ((py_histogram_obj_t *) self_in)->BBins;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(py_histogram_b_bins_obj, py_histogram_b_bins);
 
 mp_obj_t py_histogram_get_percentile(mp_obj_t self_in, mp_obj_t percentile) {
     histogram_t hist;
@@ -922,10 +659,6 @@ mp_obj_t py_histogram_get_statistics(mp_obj_t self_in) {
 static MP_DEFINE_CONST_FUN_OBJ_1(py_histogram_get_statistics_obj, py_histogram_get_statistics);
 
 static const mp_rom_map_elem_t py_histogram_locals_dict_table[] = {
-    { MP_ROM_QSTR(MP_QSTR_bins), MP_ROM_PTR(&py_histogram_bins_obj) },
-    { MP_ROM_QSTR(MP_QSTR_l_bins), MP_ROM_PTR(&py_histogram_l_bins_obj) },
-    { MP_ROM_QSTR(MP_QSTR_a_bins), MP_ROM_PTR(&py_histogram_a_bins_obj) },
-    { MP_ROM_QSTR(MP_QSTR_b_bins), MP_ROM_PTR(&py_histogram_b_bins_obj) },
     { MP_ROM_QSTR(MP_QSTR_get_percentile), MP_ROM_PTR(&py_histogram_get_percentile_obj) },
     { MP_ROM_QSTR(MP_QSTR_get_threshold), MP_ROM_PTR(&py_histogram_get_threshold_obj) },
     { MP_ROM_QSTR(MP_QSTR_get_stats), MP_ROM_PTR(&py_histogram_get_statistics_obj) },
@@ -939,8 +672,8 @@ static MP_DEFINE_CONST_OBJ_TYPE(
     py_histogram_type,
     MP_QSTR_histogram,
     MP_TYPE_FLAG_NONE,
+    attr, py_histogram_attr,
     print, py_histogram_print,
-    subscr, py_histogram_subscr,
     locals_dict, &py_histogram_locals_dict
     );
 

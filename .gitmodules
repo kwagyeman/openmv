@@ -17,3 +17,6 @@
 [submodule "lib/apriltag"]
 	path = lib/apriltag
 	url = https://github.com/openmv/apriltag.git
+[submodule "lib/microdot"]
+	path = lib/microdot
+	url = https://github.com/miguelgrinberg/microdot.git

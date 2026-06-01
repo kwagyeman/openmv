@@ -142,32 +142,27 @@
 #define OMV_PWR_SUPPLY                      (PWR_SMPS_SUPPLY)
 
 // Linker script constants (see common.ld.S).
-#define OMV_MAIN_MEMORY                     SRAM1  // Data/BSS memory
-#define OMV_STACK_MEMORY                    SRAM1  // stack memory
+#define OMV_MAIN_MEMORY                     SRAM2  // Data/BSS memory
+#define OMV_STACK_MEMORY                    SRAM2  // stack memory
 #define OMV_RAMFUNC_MEMORY                  ITCM
 #define OMV_STACK_SIZE                      (64K)
 #define OMV_HEAP_MEMORY                     SRAM1  // libc/sbrk heap memory
 #define OMV_HEAP_SIZE                       (128K)
-#define OMV_SB_MEMORY                       DRAM   // Streaming buffer memory.
-#define OMV_SB_SIZE                         (1M)   // Streaming buffer size.
-#define OMV_DMA_MEMORY                      SRAM1  // Misc DMA buffers memory.
+#define OMV_SB_MEMORY                       SRAM2   // Streaming buffer memory.
+#define OMV_SB_SIZE                         (64K)   // Streaming buffer size.
+#define OMV_DMA_MEMORY                      SRAM2  // Misc DMA buffers memory.
 #define OMV_DMA_MEMORY_D2                   SRAM7  // Domain 2 DMA buffers.
 #define OMV_GC_BLOCK0_MEMORY                SRAM2  // Main GC block
-#define OMV_GC_BLOCK0_SIZE                  (1M)
-#define OMV_GC_BLOCK1_MEMORY                DRAM   // Main GC block
-#define OMV_GC_BLOCK1_SIZE                  (24M)
-#define OMV_UMA_BLOCK0_MEMORY               DRAM   // Default UMA pool.
-#define OMV_UMA_BLOCK0_SIZE                 (31M)
+#define OMV_GC_BLOCK0_SIZE                  (640K)
+#define OMV_UMA_BLOCK0_MEMORY               SRAM1  // Fast UMA pool.
+#define OMV_UMA_BLOCK0_SIZE                 (896K)
 #define OMV_UMA_BLOCK0_FLAGS                (0)
-#define OMV_UMA_BLOCK1_MEMORY               SRAM1  // Fast UMA pool.
-#define OMV_UMA_BLOCK1_SIZE                 (590K)
-#define OMV_UMA_BLOCK1_FLAGS                (UMA_FAST | UMA_DTCM)
-#define OMV_UMA_BLOCK2_MEMORY               DTCM   // DTCM UMA pool.
-#define OMV_UMA_BLOCK2_SIZE                 (128K)
-#define OMV_UMA_BLOCK2_FLAGS                (UMA_DTCM)
-#define OMV_UMA_BLOCK3_MEMORY               SRAM3 // NPU AXI SRAM pool.
-#define OMV_UMA_BLOCK3_SIZE                 (1792K)
-#define OMV_UMA_BLOCK3_FLAGS                (UMA_FAST | UMA_DTCM | UMA_TRANSIENT)
+#define OMV_UMA_BLOCK1_MEMORY               DTCM   // DTCM UMA pool.
+#define OMV_UMA_BLOCK1_SIZE                 (128K)
+#define OMV_UMA_BLOCK1_FLAGS                (UMA_DTCM)
+#define OMV_UMA_BLOCK2_MEMORY               SRAM3 // NPU AXI SRAM pool.
+#define OMV_UMA_BLOCK2_SIZE                 (1792K)
+#define OMV_UMA_BLOCK2_FLAGS                (UMA_FAST | UMA_DTCM | UMA_TRANSIENT)
 #define OMV_MSC_BUF_SIZE                    (4K)   // USB MSC bot data
 #define OMV_VOSPI_DMA_BUFFER                ".d2_dma_buffer"
 
@@ -184,8 +179,6 @@
 #define OMV_SRAM3_LENGTH                    1792K       // 4 x 448KB
 #define OMV_SRAM7_ORIGIN                    0x38000000  // AHBSRAM1 + AHBSRAM2 combined
 #define OMV_SRAM7_LENGTH                    32K         // 16KB + 16KB = 32KB
-#define OMV_DRAM_ORIGIN                     0x90000000  // XSPI1
-#define OMV_DRAM_LENGTH                     64M         // 512 Mbits (64 MBytes)
 
 // Flash configuration.
 #define OMV_FLASH_BOOT_ORIGIN               0x34180400
@@ -332,29 +325,4 @@
 #define OMV_CSI_RESET_PIN                   (&omv_pin_E3_GPIO)
 #define OMV_CSI_POWER_PIN                   (&omv_pin_E1_GPIO)
 //#define OMV_CSI_FSYNC_PIN                   (&omv_pin_B4_GPIO)
-
-#define OMV_XSPI1_IO00_PIN                  (&omv_pin_P0_XSPIM_P1)
-#define OMV_XSPI1_IO01_PIN                  (&omv_pin_P1_XSPIM_P1)
-#define OMV_XSPI1_IO02_PIN                  (&omv_pin_P2_XSPIM_P1)
-#define OMV_XSPI1_IO03_PIN                  (&omv_pin_P3_XSPIM_P1)
-#define OMV_XSPI1_IO04_PIN                  (&omv_pin_P4_XSPIM_P1)
-#define OMV_XSPI1_IO05_PIN                  (&omv_pin_P5_XSPIM_P1)
-#define OMV_XSPI1_IO06_PIN                  (&omv_pin_P6_XSPIM_P1)
-#define OMV_XSPI1_IO07_PIN                  (&omv_pin_P7_XSPIM_P1)
-#define OMV_XSPI1_IO08_PIN                  (&omv_pin_P8_XSPIM_P1)
-#define OMV_XSPI1_IO09_PIN                  (&omv_pin_P9_XSPIM_P1)
-#define OMV_XSPI1_IO10_PIN                  (&omv_pin_P10_XSPIM_P1)
-#define OMV_XSPI1_IO11_PIN                  (&omv_pin_P11_XSPIM_P1)
-#define OMV_XSPI1_IO12_PIN                  (&omv_pin_P12_XSPIM_P1)
-#define OMV_XSPI1_IO13_PIN                  (&omv_pin_P13_XSPIM_P1)
-#define OMV_XSPI1_IO14_PIN                  (&omv_pin_P14_XSPIM_P1)
-#define OMV_XSPI1_IO15_PIN                  (&omv_pin_P15_XSPIM_P1)
-#define OMV_XSPI1_NCS1_PIN                  (&omv_pin_O0_XSPIM_P1)
-#define OMV_XSPI1_DQS0_PIN                  (&omv_pin_O2_XSPIM_P1)
-#define OMV_XSPI1_DQS1_PIN                  (&omv_pin_O3_XSPIM_P1)
-#define OMV_XSPI1_CLKP_PIN                  (&omv_pin_O4_XSPIM_P1)
-
-#define OMV_XSPI_PSRAM_ID                   (1)
-#define OMV_XSPI_PSRAM_SIZE                 (0x4000000)
-#define OMV_XSPI_PSRAM_FREQUENCY            (200000000)
 #endif //__BOARD_CONFIG_H__

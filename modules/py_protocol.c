@@ -317,6 +317,11 @@ static mp_obj_t py_protocol_is_active(void) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(py_protocol_is_active_obj, py_protocol_is_active);
 
+static mp_obj_t py_protocol_poll(void) {
+    return mp_obj_new_int(omv_protocol_poll());
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(py_protocol_poll_obj, py_protocol_poll);
+
 // Protocol init function
 static mp_obj_t py_protocol_init(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
     static const mp_arg_t allowed_args[] = {
@@ -438,6 +443,7 @@ static const mp_rom_map_elem_t protocol_globals_table[] = {
     // Protocol management functions
     { MP_ROM_QSTR(MP_QSTR_init), MP_ROM_PTR(&py_protocol_init_obj) },
     { MP_ROM_QSTR(MP_QSTR_is_active), MP_ROM_PTR(&py_protocol_is_active_obj) },
+    { MP_ROM_QSTR(MP_QSTR_poll), MP_ROM_PTR(&py_protocol_poll_obj) },
     { MP_ROM_QSTR(MP_QSTR_register), MP_ROM_PTR(&py_protocol_register_obj) },
 
     // Channel flags constants

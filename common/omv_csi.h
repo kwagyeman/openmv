@@ -52,6 +52,7 @@
 #define PAG7936_SLV_ADDR        (0x80)
 #define PAG7936_SLV_ADDR_ALT    (0x2A)
 #define PS5520_SLV_ADDR         (0x90)
+#define VBX943_SLV_ADDR         (0x20)
 
 // Chip ID Registers
 #define OV5640_CHIP_ID          (0x300A)
@@ -61,6 +62,7 @@
 #define GC_CHIP_ID              (0xF0)
 #define GENX320_CHIP_ID         (0x0014)
 #define PIXART_CHIP_ID          (0x0000)
+#define VBX943_CHIP_ID          (0x0000)
 
 // Chip ID Values
 #define OV2640_ID               (0x26)
@@ -97,6 +99,13 @@
 #define PAJ6100_ID              (0x6100)
 #define FROGEYE2020_ID          (0x2020)
 #define SOFTCSI_ID              (0x50F7)
+// VB5943/VB1943 share the same die (S940), which reports the same model
+// ID for both variants. The model ID is used to probe the sensor, and the
+// chip ID is refined to VB5943_ID/VB1943_ID once the CFA type is read.
+#define VBX943_ID_1_3           (0x53393430)
+#define VBX943_ID_1_4           (0x53393431)
+#define VB1943_ID               (0x1943)
+#define VB5943_ID               (0x5943)
 
 #define OMV_CSI_TIMEOUT_MS      (3000)
 
@@ -322,6 +331,7 @@ typedef struct _omv_csi {
         uint32_t yuv_format : 1;  // YUV/YVU output format.
         uint32_t jpg_format : 3;  // JPEG output format/mode.
         uint32_t cfa_format : 3;  // CFA format/pattern.
+        uint32_t cfa_mono   : 1;  // Monochrome sensor (no CFA), skip debayering.
         uint32_t mipi_if    : 1;  // CSI-2 interface.
         uint32_t mipi_brate : 12; // CSI-2 interface bitrate.
         uint32_t auxiliary  : 1;  // Indicates that the sensor can be used in dual-CSI config.

@@ -148,25 +148,37 @@ int stm_isp_init(omv_csi_t *csi, uint32_t pipe, pixformat_t pixformat, bool raw_
         return -1;
     }
 
-    // Early exit if no debayer is needed.
-    if (!raw_output || pixformat == PIXFORMAT_BAYER) {
-        HAL_DCMIPP_PIPE_DisableISPRawBayer2RGB(&csi->dcmipp, pipe);
-        HAL_DCMIPP_PIPE_DisableISPExposure(&csi->dcmipp, pipe);
-        HAL_DCMIPP_PIPE_DisableISPCtrlContrast(&csi->dcmipp, pipe);
-        return 0;
-    }
+    static const uint32_t rawbayer_lut[] = {
+        [SUBFORMAT_ID_BGGR] = DCMIPP_RAWBAYER_BGGR,
+        [SUBFORMAT_ID_GBRG] = DCMIPP_RAWBAYER_GBRG,
+        [SUBFORMAT_ID_GRBG] = DCMIPP_RAWBAYER_GRBG,
+        [SUBFORMAT_ID_RGGB] = DCMIPP_RAWBAYER_RGGB,
+    };
 
-    // Configure ISP debayer.
+    // Configure ISP debayer. The Bayer type is also used by the statistic
+    // extraction to bin the R/G/B components, so it's configured even if
+    // the debayer itself ends up disabled.
     DCMIPP_RawBayer2RGBConfTypeDef rawcfg = {
-        .RawBayerType = DCMIPP_RAWBAYER_BGGR,
+        .RawBayerType = rawbayer_lut[csi->cfa_format & 0x3],
         .VLineStrength = DCMIPP_RAWBAYER_ALGO_NONE,
         .HLineStrength = DCMIPP_RAWBAYER_ALGO_NONE,
         .PeakStrength = DCMIPP_RAWBAYER_ALGO_NONE,
         .EdgeStrength = DCMIPP_RAWBAYER_ALGO_NONE,
     };
 
-    if (HAL_DCMIPP_PIPE_SetISPRawBayer2RGBConfig(&csi->dcmipp, pipe, &rawcfg) != HAL_OK ||
-        HAL_DCMIPP_PIPE_EnableISPRawBayer2RGB(&csi->dcmipp, pipe) != HAL_OK) {
+    if (HAL_DCMIPP_PIPE_SetISPRawBayer2RGBConfig(&csi->dcmipp, pipe, &rawcfg) != HAL_OK) {
+        return -1;
+    }
+
+    // Early exit if no debayer is needed.
+    if (!raw_output || pixformat == PIXFORMAT_BAYER || csi->cfa_mono) {
+        HAL_DCMIPP_PIPE_DisableISPRawBayer2RGB(&csi->dcmipp, pipe);
+        HAL_DCMIPP_PIPE_DisableISPExposure(&csi->dcmipp, pipe);
+        HAL_DCMIPP_PIPE_DisableISPCtrlContrast(&csi->dcmipp, pipe);
+        return 0;
+    }
+
+    if (HAL_DCMIPP_PIPE_EnableISPRawBayer2RGB(&csi->dcmipp, pipe) != HAL_OK) {
         return -1;
     }
 

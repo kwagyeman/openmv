@@ -49,8 +49,7 @@
 #define GENX320_SLV_ADDR        (0x78)
 #define FROGEYE2020_SLV_ADDR    (0x6E)
 #define PAG7920_SLV_ADDR        (0x80)
-#define PAG7936_SLV_ADDR        (0x80)
-#define PAG7936_SLV_ADDR_ALT    (0x2A)
+#define PAG7936_SLV_ADDR_MIPI   (0x2A)
 #define PS5520_SLV_ADDR         (0x90)
 
 // Chip ID Registers

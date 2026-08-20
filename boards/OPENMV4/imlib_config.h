@@ -108,7 +108,10 @@
 #define IMLIB_ENABLE_DATAMATRICES
 
 // Enable find_barcodes() (42 KB)
-#define IMLIB_ENABLE_BARCODES
+// Disabled to fit the OTA firmware: the frozen boot.py + recovery installer +
+// mbedtls PEM parsing overflow this 1664K board's FLASH_TEXT by ~32K, and zbar
+// is the largest single object with the least overlap with an OTA product.
+// #define IMLIB_ENABLE_BARCODES
 
 // Enable find_features()
 #define IMLIB_ENABLE_FEATURES

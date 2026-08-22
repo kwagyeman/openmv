@@ -13,7 +13,13 @@
 # link. An 8MHz channel sustains a few Mbit/s up close; a 1-2MHz channel
 # or a long link may only sustain a few hundred kbit/s.
 #
-# View with e.g.: ffplay -rtsp_transport tcp rtsp://<ip>
+# View with e.g.: ffplay rtsp://<ip>
+#
+# Prefer the default RTP-over-UDP transport on a lossy link: packets lost
+# in a fade are simply dropped and the once-a-second keyframe repairs the
+# picture. TCP transport (-rtsp_transport tcp) works but stalls during
+# fades while TCP retransmits; the server drops a stalled client after
+# send_timeout (10s) so it can reconnect.
 
 import asyncio
 import network

@@ -25,8 +25,8 @@ except ImportError:
 
 
 class rtsp_server(rtsp.rtsp_server):
-    def __init__(self, network_if, port=554):  # private
-        super().__init__(network_if, port)
+    def __init__(self, network_if, port=554, send_timeout=10):  # private
+        super().__init__(network_if, port, send_timeout)
         self._audio_sequence_number = random.getrandbits(16)
         self._audio_samples = 0
         self._scratch = None  # H.264 Annex-B scratch, sized on first use
@@ -35,8 +35,8 @@ class rtsp_server(rtsp.rtsp_server):
         self._sps = None
         self._pps = None
         self._h264 = False
-        # int16 alias of the packet buffer for vectorized L16 byteswap.
-        self._pkt_i16 = np.frombuffer(self._pkt, dtype=np.int16)
+        # int16 alias of the audio packet buffer for vectorized L16 byteswap.
+        self._pkt_a_i16 = np.frombuffer(self._pkt_a, dtype=np.int16)
 
     def _sdp_media(self):  # private
         if not self._h264:
@@ -69,7 +69,8 @@ class rtsp_server(rtsp.rtsp_server):
                              self._sequence_number, timestamp)
             self._sequence_number = (self._sequence_number + 1) & 0xFFFF
             pkt[16:16 + n] = src[begin:end]
-            await self._send_packet(0, n)
+            # Flush on the marker packet only: one drain per access unit.
+            await self._send_packet(0, n, last)
             return
         # FU-A fragmentation (RFC 6184): 2-byte FU header per fragment.
         nal0 = src[begin]
@@ -84,7 +85,7 @@ class rtsp_server(rtsp.rtsp_server):
             pkt[16] = (nal0 & 0xE0) | 28  # FU indicator
             pkt[17] = first | (0x40 if final else 0) | (nal0 & 0x1F)
             pkt[18:18 + n] = src[begin:begin + n]
-            await self._send_packet(0, 2 + n)
+            await self._send_packet(0, 2 + n, last and final)
             begin += n
             first = 0
 
@@ -133,10 +134,10 @@ class rtsp_server(rtsp.rtsp_server):
             self._rtp_header(0x61, self._audio_sequence_number,  # PT 97
                              timestamp + i // self._audio_channels, 1)
             self._audio_sequence_number = (self._audio_sequence_number + 1) & 0xFFFF
-            seg = self._pkt_i16[8:8 + m]  # payload starts at byte 16
+            seg = self._pkt_a_i16[8:8 + m]  # payload starts at byte 16
             seg[:] = src[i:i + m]
             seg.byteswap(inplace=True)
-            await self._send_packet(1, m * 2)
+            await self._send_packet(1, m * 2, (i + m) >= n)
             i += m
 
     # ------------------------------------------------------------------ #
@@ -201,7 +202,10 @@ class rtsp_server(rtsp.rtsp_server):
                     try:
                         await self._send_rtp_h264(au, keyframe, self._timestamp())
                     except OSError:
-                        pass
+                        # The frame went out partially (or not at all): the
+                        # decoder's reference chain is broken, resync with a
+                        # keyframe as soon as sending works again.
+                        self._needs_idr = True
                     await _sleep_ms(0)
                 else:
                     await _sleep_ms(100)

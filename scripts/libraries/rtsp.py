@@ -20,6 +20,7 @@ import random
 import re
 import socket
 import struct
+import sys
 import time
 
 try:
@@ -35,6 +36,12 @@ except ImportError:
 _MTU = 1400
 _RTP_OVERHEAD = 16  # $-framing + RTP header
 
+# MicroPython's StreamWriter.write() copies into its output buffer, so
+# packets can be assembled in a reused buffer. CPython 3.12+ transports
+# queue a zero-copy reference instead, so there the data must be copied
+# before the buffer is reused (host testing only - never on device).
+_COPY_ON_WRITE = sys.implementation.name != "micropython"
+
 
 def _sleep_ms(ms):
     return asyncio.sleep(ms / 1000)
@@ -48,8 +55,9 @@ def _ticks_90khz():
 
 
 class rtsp_server:
-    def __init__(self, network_if, port=554):  # private
+    def __init__(self, network_if, port=554, send_timeout=10):  # private
         self._network = network_if
+        self._send_timeout = send_timeout
         self._myip = self._network.ifconfig()[0]
         self._myaddr = (self._myip, port)
         self._setup_cb = None
@@ -72,9 +80,14 @@ class rtsp_server:
         self._udp_addr = [None, None]
         self._udp_sock = None
         self._track_setup = [False, False]
-        # Preallocated packet buffer: [$ C len][RTP header][payload].
+        # Preallocated packet buffers: [$ C len][RTP header][payload].
+        # One per track: the video and audio tasks both suspend inside
+        # sends, and a shared buffer lets one task overwrite the other's
+        # packet between assembly and transmission under back-pressure.
         self._pkt = bytearray(_MTU + _RTP_OVERHEAD)
         self._pkt_mv = memoryview(self._pkt)
+        self._pkt_a = bytearray(_MTU + _RTP_OVERHEAD)
+        self._pkt_a_mv = memoryview(self._pkt_a)
         self._audio_rate = 0  # set by the rtsp_h264 subclass
         self._audio_channels = 1
         print("IP Address:Port %s:%d\nRunning..." % self._myaddr)
@@ -94,15 +107,32 @@ class rtsp_server:
     # ------------------------------------------------------------------ #
     # Socket plumbing
     # ------------------------------------------------------------------ #
-    async def _send_all(self, data):  # private
+    async def _send_all(self, data, flush=True):  # private
         # Control responses and interleaved RTP share the TCP stream; the
         # lock keeps packets whole across the video and audio tasks.
+        # flush=False queues without draining so a multi-packet frame pays
+        # one drain (and one scheduler round-trip) at its last packet.
         async with self._lock:
             w = self._writer
             if w is None:
                 return  # client disconnected - drop
-            w.write(data)
-            await w.drain()
+            w.write(bytes(data) if _COPY_ON_WRITE else data)
+            if not flush:
+                return
+            try:
+                await asyncio.wait_for(w.drain(), self._send_timeout)
+            except asyncio.TimeoutError:
+                # The link stalled long enough that the client is effectively
+                # unreachable (TCP retransmitted the whole time). Abort the
+                # connection so state resets and the client can reconnect;
+                # holding on would wedge audio and control behind the lock.
+                self._writer = None
+                self._needs_idr = True
+                try:
+                    w.close()
+                except OSError:
+                    pass
+                raise OSError(110)  # ETIMEDOUT - abort the current frame
 
     def _send_udp(self, mv, track):  # private
         try:
@@ -110,14 +140,17 @@ class rtsp_server:
         except OSError:
             pass  # drop, never stall the camera loop
 
-    async def _send_packet(self, track, payload_len):  # private
-        # Packet was assembled in self._pkt at offset 4 (RTP header at 4).
+    async def _send_packet(self, track, payload_len, flush=True):  # private
+        # Packet was assembled in the track's buffer at offset 4 (RTP
+        # header at 4).
+        pkt = self._pkt if track == 0 else self._pkt_a
+        mv = self._pkt_mv if track == 0 else self._pkt_a_mv
         if self._transport_is_tcp:
-            struct.pack_into(">BBH", self._pkt, 0, 0x24,
+            struct.pack_into(">BBH", pkt, 0, 0x24,
                              self._channels[track], 12 + payload_len)
-            await self._send_all(self._pkt_mv[:16 + payload_len])
+            await self._send_all(mv[:16 + payload_len], flush)
         else:
-            self._send_udp(self._pkt_mv[4:16 + payload_len], track)
+            self._send_udp(mv[4:16 + payload_len], track)
 
     def _timestamp(self):  # private
         # 90 kHz media clock; strictly monotonic so back-to-back frames
@@ -129,7 +162,8 @@ class rtsp_server:
         return ts
 
     def _rtp_header(self, pt_marker, seq, timestamp, track=0):  # private
-        struct.pack_into(">BBHII", self._pkt, 4, 0x80, pt_marker, seq,
+        pkt = self._pkt if track == 0 else self._pkt_a
+        struct.pack_into(">BBHII", pkt, 4, 0x80, pt_marker, seq,
                          timestamp & 0xFFFFFFFF, self._ssrc + track)
 
     # ------------------------------------------------------------------ #
@@ -250,6 +284,10 @@ class rtsp_server:
                         return
                     elif request == "TEARDOWN":
                         self._playing = False
+                        self._track_setup[0] = False
+                        self._track_setup[1] = False
+                        self._udp_addr[0] = None
+                        self._udp_addr[1] = None
                         await self._send_rtsp_response_ok(seq)
                         if self._teardown_cb:
                             self._teardown_cb(self._pathname, self._session)
@@ -265,8 +303,18 @@ class rtsp_server:
             return
         self._writer = writer
         self._client_addr = writer.get_extra_info("peername") or ("0.0.0.0", 0)
-        self._session = random.getrandbits(30)
-        self._ssrc = random.getrandbits(30)
+        try:
+            # Interleaved RTP is latency sensitive: send segments as queued
+            # rather than letting Nagle hold trailing fragments.
+            s = getattr(writer, "s", None) or writer.get_extra_info("socket")
+            s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        except (OSError, AttributeError):
+            pass
+        if not (self._playing and not self._transport_is_tcp):
+            # Don't disturb a live UDP session (surviving a control-connection
+            # drop, below): its RTP stream keeps the old ssrc until a SETUP.
+            self._session = random.getrandbits(30)
+            self._ssrc = random.getrandbits(30)
         try:
             while True:
                 first = await reader.readexactly(1)
@@ -290,17 +338,25 @@ class rtsp_server:
         except (OSError, EOFError):
             pass
         finally:
-            if self._playing:
-                self._playing = False
-                if self._teardown_cb:
-                    self._teardown_cb(self._pathname, self._playing_session)
-            self._track_setup[0] = False
-            self._track_setup[1] = False
-            self._writer = None
             try:
                 writer.close()
             except OSError:
                 pass
+            # A send timeout may have already dropped this writer and let a
+            # new client take the slot - only the current owner cleans up.
+            if self._writer is writer:
+                self._writer = None
+                if self._transport_is_tcp:
+                    # Interleaved RTP dies with the control connection.
+                    if self._playing:
+                        self._playing = False
+                        if self._teardown_cb:
+                            self._teardown_cb(self._pathname, self._playing_session)
+                    self._track_setup[0] = False
+                    self._track_setup[1] = False
+                # Over UDP, keep streaming through a control-connection drop
+                # (e.g. a radio fade): the session ends on an explicit
+                # TEARDOWN, or when a reconnecting client issues a new SETUP.
 
     # ------------------------------------------------------------------ #
     # RTP payloaders (packets assembled in the preallocated buffer)
@@ -323,7 +379,7 @@ class rtsp_server:
             self._sequence_number = (self._sequence_number + 1) & 0xFFFF
             struct.pack_into(">IBBBB", pkt, 16, i, 0, quality, w8, h8)
             pkt[24:24 + n] = mv[i:i + n]
-            await self._send_packet(0, 8 + n)
+            await self._send_packet(0, 8 + n, last)
             i += n
 
     # ------------------------------------------------------------------ #

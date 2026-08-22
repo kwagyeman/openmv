@@ -24,6 +24,7 @@
 import asyncio
 import network
 import rtsp_h264
+import machine
 import mp4
 import audio
 import csi
@@ -41,6 +42,11 @@ KEYFRAME_INTERVAL = 15  # One keyframe per second at 15 fps
 
 AUDIO_RATE = 16000  # L16 PCM audio is audio_rate * 16 bit/s on the wire
 AUDIO_GAIN_DB = 24
+
+RSSI_BAD = -70  # dBm - below this the status LED turns red
+
+# Status LED: blinking blue = associating/getting an IP address,
+# solid green = ready/streaming, solid red = weak signal (< RSSI_BAD).
 
 csi0 = csi.CSI(stream=False)
 csi0.reset()
@@ -60,6 +66,10 @@ audio.init(channels=1, frequency=AUDIO_RATE, gain_db=AUDIO_GAIN_DB)
 audio.start_streaming(mic.callback)
 mic.settle()  # wait out the mic filters' start-up pop
 
+led_blue = machine.LED("LED_BLUE")
+led_green = machine.LED("LED_GREEN")
+led_red = machine.LED("LED_RED")
+
 # Setup Network Interface
 
 network.country(COUNTRY)
@@ -68,12 +78,16 @@ network_if.config(pm=network.HALOW.PM_NONE)  # no power saving while streaming
 network_if.active(True)
 network_if.connect(SSID, KEY)
 while not network_if.isconnected():
+    # Blink blue while associating and getting an IP address.
+    led_blue.toggle()
     print("Trying to connect. Note this may take a while...")
-    time.sleep_ms(1000)
+    time.sleep_ms(250)
+led_blue.off()
 
 # Setup RTSP Server
 
 server = rtsp_h264.rtsp_server(network_if)
+led_green.on()  # ready
 
 _last_rssi_ms = time.ticks_ms()
 
@@ -83,7 +97,14 @@ def image_callback(pathname, session):
     global _last_rssi_ms
     if time.ticks_diff(time.ticks_ms(), _last_rssi_ms) > 1000:
         _last_rssi_ms = time.ticks_ms()
-        print("rssi:", network_if.status("rssi"), "dBm")
+        rssi = network_if.status("rssi")
+        print("rssi:", rssi, "dBm")
+        if rssi < RSSI_BAD:
+            led_green.off()
+            led_red.on()
+        else:
+            led_red.off()
+            led_green.on()
     return csi0.snapshot()
 
 

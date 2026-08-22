@@ -227,7 +227,8 @@
 
 /* ################## SDMMC peripheral configuration ######################### */
 
-#define USE_SD_TRANSCEIVER            0U
+/* Enabled for SD card UHS-I (1.8V switch) support. */
+#define USE_SD_TRANSCEIVER            1U
 
 /* Includes ------------------------------------------------------------------*/
 /**

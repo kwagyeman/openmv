@@ -280,6 +280,25 @@ void SystemClock_Config(void) {
     if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK) {
         __fatal_error("HAL_RCCEx_PeriphCLKConfig");
     }
+
+    // Program the HSLV_VDDIO4 fuse if it isn't set, so the SD card driver can
+    // switch the VDDIO4 pad range to 1.8V for UHS-I mode (older bootloaders
+    // only program the VDDIO2/3 fuses).
+    uint32_t fuse;
+    BSEC_HandleTypeDef hbsec = { .Instance = BSEC };
+    __HAL_RCC_BSEC_CLK_ENABLE();
+    if (HAL_BSEC_OTP_Read(&hbsec, BSEC_HW_CONFIG_ID, &fuse) != HAL_OK) {
+        __fatal_error("HAL_BSEC_OTP_Read");
+    } else if ((fuse & BSEC_HWS_HSLV_VDDIO4) != BSEC_HWS_HSLV_VDDIO4) {
+        // Program the fuse.
+        if (HAL_BSEC_OTP_Program(&hbsec, BSEC_HW_CONFIG_ID, fuse | BSEC_HWS_HSLV_VDDIO4, HAL_BSEC_NORMAL_PROG) != HAL_OK) {
+            __fatal_error("HAL_BSEC_OTP_Program");
+        }
+        // Read back the fuse to verify the programming.
+        if (HAL_BSEC_OTP_Read(&hbsec, BSEC_HW_CONFIG_ID, &fuse) != HAL_OK || ((fuse & BSEC_HWS_HSLV_VDDIO4) == 0)) {
+            __fatal_error("HAL_BSEC_OTP_Read");
+        }
+    }
 }
 #else
 void SystemInit(void) {

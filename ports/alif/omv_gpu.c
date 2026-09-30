@@ -42,7 +42,9 @@
 #include "omv_gpu.h"
 
 static d2_device *dev;
-static d2_color CLUT_BUFFER[256];
+// The GPU fetches the CLUT itself, so it must live in SRAM: a CLUT in DTCM hangs the
+// GPU on the first GRAYSCALE to RGB565 blit. Cache-line aligned as it is cleaned before use.
+static d2_color CLUT_BUFFER[256] __attribute__((section(".bss.sram"), aligned(32)));
 
 extern char _gpu_memory_start;
 extern char _gpu_memory_end;
@@ -230,6 +232,7 @@ int omv_gpu_draw_image(image_t *src_img,
 
         if (dst_img->pixfmt == PIXFORMAT_RGB565) {
             omv_gpu_load_clut(color_palette, alpha_palette);
+            SCB_CleanDCache_by_Addr((void *) CLUT_BUFFER, sizeof(CLUT_BUFFER));
             err = d2_settexclut(dev, (void *) LocalToGlobal(CLUT_BUFFER));
             OMV_GPU_CHECK_ERROR(err);
         }

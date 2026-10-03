@@ -50,6 +50,19 @@
 #define WINC_SCAN_TIMEOUT       (10000)
 // Association plus DHCP, which is much slower than a single request.
 #define WINC_CONNECT_TIMEOUT    (20000)
+// Connections a listening socket can hold before they are accepted.
+#define WINC_ACCEPT_BACKLOG     (4)
+
+// Socket errors returned by the driver itself, outside the range of the WINC's SOCK_ERR_* codes.
+#define WINC_SOCK_ERR_INPROGRESS    (-64)   // Non-blocking connect started.
+#define WINC_SOCK_ERR_CONN_FAILED   (-65)   // The connection could not be made.
+#define WINC_SOCK_ERR_NOT_CONNECTED (-66)   // Stream I/O on a socket that isn't connected.
+
+// Socket readiness reported by winc_socket_poll().
+#define WINC_POLL_RD            (1 << 0)
+#define WINC_POLL_WR            (1 << 1)
+#define WINC_POLL_ERR           (1 << 2)
+#define WINC_POLL_NVAL          (1 << 3)
 
 #define MAKE_SOCKADDR(addr, ip, port) \
     struct sockaddr addr; \
@@ -154,13 +167,15 @@ int winc_flash_write(const char *path);
 int winc_flash_verify(const char *path);
 int winc_gethostbyname(const char *name, uint8_t *out_ip);
 int winc_socket_socket(uint8_t type);
+void winc_socket_set_buf(int fd, winc_socket_buf_t *sockbuf);
+int winc_socket_poll(int fd);
 void winc_socket_close(int fd);
 int winc_socket_bind(int fd, sockaddr *addr);
 int winc_socket_listen(int fd, uint32_t backlog);
 int winc_socket_accept(int fd, sockaddr *addr, int *fd_out, uint32_t timeout);
 int winc_socket_connect(int fd, sockaddr *addr, uint32_t timeout);
 int winc_socket_send(int fd, const uint8_t *buf, uint32_t len, uint32_t timeout);
-int winc_socket_recv(int fd, uint8_t *buf, uint32_t len, winc_socket_buf_t *sockbuf, uint32_t timeout);
+int winc_socket_recv(int fd, uint8_t *buf, uint32_t len, uint32_t timeout);
 int winc_socket_sendto(int fd, const uint8_t *buf, uint32_t len, sockaddr *addr, uint32_t timeout);
 int winc_socket_recvfrom(int fd, uint8_t *buf, uint32_t len, sockaddr *addr, uint32_t timeout);
 int winc_socket_setsockopt(int fd, uint32_t level, uint32_t opt, const void *optval, uint32_t optlen);

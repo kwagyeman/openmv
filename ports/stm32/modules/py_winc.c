@@ -70,6 +70,12 @@ static int py_winc_mperrno(int32_t err) {
             return MP_ENOBUFS;
         case SOCK_ERR_ADDR_ALREADY_IN_USE:
             return MP_EADDRINUSE;
+        case WINC_SOCK_ERR_INPROGRESS:
+            return MP_EINPROGRESS;
+        case WINC_SOCK_ERR_CONN_FAILED:
+            return MP_ECONNREFUSED;
+        case WINC_SOCK_ERR_NOT_CONNECTED:
+            return MP_ENOTCONN;
         case SOCK_ERR_INVALID:
         case SOCK_ERR_INVALID_ARG:
         case SOCK_ERR_INVALID_ADDRESS:
@@ -420,6 +426,7 @@ static int py_winc_socket_socket(mod_network_socket_obj_t *socket, int *_errno) 
     socket->fileno = fd;
     // Datagram sockets are read with recvfrom(), which doesn't use the socket buffer.
     socket->_private = (socket->type == MOD_NETWORK_SOCK_STREAM) ? m_new0(winc_socket_buf_t, 1) : NULL;
+    winc_socket_set_buf(fd, socket->_private);
     return 0;
 }
 
@@ -474,6 +481,7 @@ static int py_winc_socket_accept(mod_network_socket_obj_t *socket,
     // Set default socket timeout.
     socket2->fileno = fd;
     socket2->_private = m_new0(winc_socket_buf_t, 1);
+    winc_socket_set_buf(fd, socket2->_private);
     UNPACK_SOCKADDR((&addr), ip, *port);
 
     return 0;
@@ -484,7 +492,10 @@ static int py_winc_socket_connect(mod_network_socket_obj_t *socket, byte *ip, mp
     int ret = winc_socket_connect(socket->fileno, &addr, socket->timeout);
     if (ret < 0) {
         *_errno = py_winc_mperrno(ret);
-        py_winc_socket_close(socket);
+        // A non-blocking connect completes in the background, poll for writable.
+        if (ret != WINC_SOCK_ERR_INPROGRESS) {
+            py_winc_socket_close(socket);
+        }
         return -1;
     }
     return 0;
@@ -510,7 +521,7 @@ static mp_uint_t py_winc_socket_recv(mod_network_socket_obj_t *socket, byte *buf
         sockaddr addr;
         ret = winc_socket_recvfrom(socket->fileno, buf, len, &addr, socket->timeout);
     } else {
-        ret = winc_socket_recv(socket->fileno, buf, len, socket->_private, socket->timeout);
+        ret = winc_socket_recv(socket->fileno, buf, len, socket->timeout);
     }
     // NOTE: 0 means the peer closed the connection, the socket is left open like lwIP.
     if (ret < 0) {
@@ -572,8 +583,32 @@ static int py_winc_socket_settimeout(mod_network_socket_obj_t *socket, mp_uint_t
 }
 
 static int py_winc_socket_ioctl(mod_network_socket_obj_t *socket, mp_uint_t request, mp_uint_t arg, int *_errno) {
-    *_errno = MP_EIO;
-    return -1;
+    if (request != MP_STREAM_POLL) {
+        *_errno = MP_EINVAL;
+        return MP_STREAM_ERROR;
+    }
+
+    if (socket->fileno < 0) {
+        return MP_STREAM_POLL_NVAL;
+    }
+
+    int ready = winc_socket_poll(socket->fileno);
+    mp_uint_t ret = 0;
+    if (ready & WINC_POLL_RD) {
+        ret |= MP_STREAM_POLL_RD;
+    }
+    if (ready & WINC_POLL_WR) {
+        ret |= MP_STREAM_POLL_WR;
+    }
+    // Errors are always reported, whatever was asked for.
+    ret &= arg;
+    if (ready & WINC_POLL_ERR) {
+        ret |= MP_STREAM_POLL_ERR;
+    }
+    if (ready & WINC_POLL_NVAL) {
+        ret |= MP_STREAM_POLL_NVAL;
+    }
+    return ret;
 }
 
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(py_winc_active_obj, 1, 2, py_winc_active);
@@ -635,6 +670,9 @@ static const mod_network_nic_protocol_t mod_network_nic_protocol_winc = {
     .settimeout = py_winc_socket_settimeout,
     .ioctl = py_winc_socket_ioctl,
 };
+
+// Stream receive buffers held by the driver, see winc_socket_set_buf().
+MP_REGISTER_ROOT_POINTER(void *winc_sockbuf[7]);
 
 MP_DEFINE_CONST_OBJ_TYPE(
     mod_network_nic_type_winc,

@@ -58,14 +58,105 @@ typedef struct {
 } recv_from_t;
 
 typedef struct {
-    int sock;
-    struct sockaddr_in addr;
-} accept_t;
-
-typedef struct {
     void *arg;
     winc_scan_callback_t cb;
 } scan_arg_t;
+
+// Connection state of a socket.
+enum {
+    WINC_CONN_NONE = 0,
+    WINC_CONN_PENDING,
+    WINC_CONN_DONE,
+    WINC_CONN_FAILED,
+};
+
+// A connection accepted by the firmware and waiting for accept() to take it.
+typedef struct {
+    uint32_t ip;
+    uint16_t port;
+    int8_t sock;
+} winc_accepted_t;
+
+// Per-socket state. Connect, accept and stream receive replies are completed here by
+// the event handler whenever it runs, rather than only while a call is waiting on them,
+// so a reply that arrives during another call (or while nothing waits, in non-blocking
+// mode) is kept instead of dropped, and readiness can be polled.
+typedef struct {
+    volatile int8_t conn;
+    volatile int8_t error;              // Latched socket error, 0 if none.
+    volatile bool rx_pending;           // A receive request is outstanding.
+    volatile uint8_t accept_count;
+    winc_accepted_t accept[WINC_ACCEPT_BACKLOG];
+} winc_sock_state_t;
+
+static winc_sock_state_t sock_state[MAX_SOCKET];
+
+// Stream receive buffers, indexed by fd. A receive request stays outstanding across
+// calls, so the firmware can write into a buffer at any time until the socket closes.
+// They're kept in a root pointer to keep them alive for that long, even if the socket
+// object is dropped without being closed.
+MP_STATIC_ASSERT(MP_ARRAY_SIZE(MP_STATE_PORT(winc_sockbuf)) == TCP_SOCK_MAX);
+
+static inline bool sock_valid(int fd) {
+    return fd >= 0 && fd < MAX_SOCKET;
+}
+
+static inline bool sock_is_stream(int fd) {
+    return fd >= 0 && fd < TCP_SOCK_MAX;
+}
+
+static inline winc_socket_buf_t *sock_rx(int fd) {
+    return sock_is_stream(fd) ? MP_STATE_PORT(winc_sockbuf)[fd] : NULL;
+}
+
+static void sock_reset(int fd, int8_t conn) {
+    if (sock_valid(fd)) {
+        memset(&sock_state[fd], 0, sizeof(winc_sock_state_t));
+        sock_state[fd].conn = conn;
+    }
+    if (sock_is_stream(fd)) {
+        MP_STATE_PORT(winc_sockbuf)[fd] = NULL;
+    }
+}
+
+// Queue a connection on its listening socket. The firmware has already accepted it,
+// so if the queue is full it's closed rather than leaked.
+static void sock_accepted(SOCKET sock, tstrSocketAcceptMsg *msg) {
+    if (msg->sock < 0) {
+        return;
+    }
+    winc_sock_state_t *s = &sock_state[sock];
+    if (s->accept_count >= WINC_ACCEPT_BACKLOG) {
+        WINC1500_EXPORT(close) (msg->sock);
+        return;
+    }
+    winc_accepted_t *a = &s->accept[s->accept_count];
+    a->sock = msg->sock;
+    a->port = msg->strAddr.sin_port;
+    a->ip = msg->strAddr.sin_addr.s_addr;
+    s->accept_count++;
+}
+
+// Complete a stream receive into the socket's buffer.
+static void sock_received(SOCKET sock, tstrSocketRecvMsg *msg) {
+    winc_sock_state_t *s = &sock_state[sock];
+    winc_socket_buf_t *rx = sock_rx(sock);
+    s->rx_pending = false;
+    if (rx == NULL) {
+        // The socket was closed, nothing to deliver to.
+        return;
+    }
+    if (msg->s16BufferSize > 0) {
+        // The data is already in rx->buf, the buffer the request was made with.
+        rx->idx = 0;
+        rx->size = msg->s16BufferSize;
+    } else if (msg->s16BufferSize == SOCK_ERR_NO_ERROR || msg->s16BufferSize == SOCK_ERR_CONN_ABORTED) {
+        // The peer closed the connection, latch EOF.
+        rx->closed = true;
+    } else if (msg->s16BufferSize != SOCK_ERR_TIMEOUT) {
+        s->error = msg->s16BufferSize;
+    }
+}
 
 /**
  * DNS Callback.
@@ -74,6 +165,10 @@ typedef struct {
  * ip: Server IP.
  */
 static void resolve_callback(uint8_t *host, uint32_t ip) {
+    if (async_request_data == NULL) {
+        // A reply to a request that has already timed out.
+        return;
+    }
     async_request_done = true;
     *((uint32_t *) async_request_data) = ip;
 }
@@ -106,15 +201,44 @@ static void socket_callback(SOCKET sock, uint8_t msg_type, void *msg) {
     if (((msg_type == SOCKET_MSG_SEND) || (msg_type == SOCKET_MSG_SENDTO))
         && ((*((int16_t *) msg)) < 0)) {
         WINC1500_EXPORT(close) (sock);
+        if (sock_valid(sock)) {
+            // The socket is gone, so latch an error that can't be mistaken for EAGAIN.
+            int16_t error = *((int16_t *) msg);
+            sock_state[sock].error = (error == SOCK_ERR_TIMEOUT) ? SOCK_ERR_CONN_ABORTED : error;
+        }
     }
 
-    if (async_request_type != msg_type) {
-        if (msg_type == SOCKET_MSG_SEND || msg_type == SOCKET_MSG_SENDTO) {
-            async_request_ack = true;
-        } else {
-            debug_printf("spurious message received!"
-                         " expected: (%d) received: (%d)\n", async_request_type, msg_type);
+    // Replies tracked per socket complete regardless of what (if anything) is waiting.
+    if (sock_valid(sock)) {
+        switch (msg_type) {
+            case SOCKET_MSG_CONNECT: {
+                tstrSocketConnectMsg *pstrConnect = (tstrSocketConnectMsg *) msg;
+                if (sock_state[sock].conn == WINC_CONN_PENDING) {
+                    sock_state[sock].conn = (pstrConnect->s8Error == 0) ? WINC_CONN_DONE : WINC_CONN_FAILED;
+                }
+                return;
+            }
+            case SOCKET_MSG_ACCEPT:
+                sock_accepted(sock, (tstrSocketAcceptMsg *) msg);
+                return;
+            case SOCKET_MSG_RECV:
+                sock_received(sock, (tstrSocketRecvMsg *) msg);
+                return;
+            default:
+                break;
         }
+    }
+
+    // Nothing waits on send replies, they only show the firmware is still making progress.
+    if (msg_type == SOCKET_MSG_SEND || msg_type == SOCKET_MSG_SENDTO) {
+        async_request_ack = true;
+        return;
+    }
+
+    // A reply to a request that has already timed out has nowhere to go.
+    if (async_request_type != msg_type || async_request_data == NULL) {
+        debug_printf("spurious message received!"
+                     " expected: (%d) received: (%d)\n", async_request_type, msg_type);
         return;
     }
 
@@ -142,60 +266,6 @@ static void socket_callback(SOCKET sock, uint8_t msg_type, void *msg) {
             } else {
                 *((int *) async_request_data) = -1;
                 debug_printf("listen error!\n");
-            }
-            async_request_done = true;
-            break;
-        }
-
-        // Connect accept.
-        case SOCKET_MSG_ACCEPT: {
-            accept_t *acpt = (accept_t *) async_request_data;
-            tstrSocketAcceptMsg *pstrAccept = (tstrSocketAcceptMsg *) msg;
-            if (pstrAccept->sock >= 0) {
-                acpt->sock = pstrAccept->sock;
-                acpt->addr.sin_port = pstrAccept->strAddr.sin_port;
-                acpt->addr.sin_addr = pstrAccept->strAddr.sin_addr;
-                debug_printf("accept success %d.\n", pstrAccept->sock);
-            } else {
-                acpt->sock = pstrAccept->sock;
-                debug_printf("accept error!\n");
-            }
-            async_request_done = true;
-            break;
-        }
-
-        // Socket connected.
-        case SOCKET_MSG_CONNECT: {
-            tstrSocketConnectMsg *pstrConnect = (tstrSocketConnectMsg *) msg;
-            if (pstrConnect->s8Error == 0) {
-                *((int *) async_request_data) = 0;
-                debug_printf("connect success.\n");
-            } else {
-                *((int *) async_request_data) = -1;
-                debug_printf("connect error!\n");
-            }
-            async_request_done = true;
-            break;
-        }
-
-        // Message send.
-        case SOCKET_MSG_SEND:
-        case SOCKET_MSG_SENDTO: {
-            // Sent bytes set in msg.
-            *((int *) async_request_data) = *((int16_t *) msg);
-            async_request_done = true;
-            break;
-        }
-
-        // Message receive.
-        case SOCKET_MSG_RECV: {
-            tstrSocketRecvMsg *pstrRecv = (tstrSocketRecvMsg *) msg;
-            if (pstrRecv->s16BufferSize > 0) {
-                *((int *) async_request_data) = pstrRecv->s16BufferSize;
-                debug_printf("recv %d\n", pstrRecv->s16BufferSize);
-            } else {
-                *((int *) async_request_data) = pstrRecv->s16BufferSize;
-                debug_printf("recv error! %d\n", pstrRecv->s16BufferSize);
             }
             async_request_done = true;
             break;
@@ -475,14 +545,17 @@ static int winc_async_request(uint8_t msg_type, void *ret, uint32_t timeout) {
         }
 
         if ((HAL_GetTick() - tick_start) >= timeout) {
-            return SOCK_ERR_TIMEOUT;
+            break;
         }
 
         // Wait for the next IRQ.
         __WFI();
     }
 
-    return SOCK_ERR_NO_ERROR;
+    // The request buffer is owned by the caller's stack frame. Drop it, so that a
+    // reply arriving after a timeout isn't written to a frame that no longer exists.
+    async_request_data = NULL;
+    return async_request_done ? SOCK_ERR_NO_ERROR : SOCK_ERR_TIMEOUT;
 }
 
 const char *winc_strerror(int error) {
@@ -573,6 +646,9 @@ int winc_init(winc_mode_t winc_mode) {
             // Initialize socket layer.
             socketDeinit();
             socketInit();
+            for (int fd = 0; fd < MAX_SOCKET; fd++) {
+                sock_reset(fd, WINC_CONN_NONE);
+            }
 
             // Register sockets callback functions
             registerSocketCallback(socket_callback, resolve_callback);
@@ -829,11 +905,115 @@ int winc_gethostbyname(const char *name, uint8_t *out_ip) {
 
 int winc_socket_socket(uint8_t type) {
     // open socket
-    return WINC1500_EXPORT(socket) (AF_INET, type, 0);
+    int fd = WINC1500_EXPORT(socket) (AF_INET, type, 0);
+    if (fd >= 0) {
+        sock_reset(fd, WINC_CONN_NONE);
+    }
+    return fd;
+}
+
+void winc_socket_set_buf(int fd, winc_socket_buf_t *sockbuf) {
+    if (sock_is_stream(fd)) {
+        MP_STATE_PORT(winc_sockbuf)[fd] = sockbuf;
+    }
 }
 
 void winc_socket_close(int fd) {
+    // Close connections the firmware accepted on a listening socket but nothing took.
+    if (sock_valid(fd)) {
+        for (int i = 0; i < sock_state[fd].accept_count; i++) {
+            WINC1500_EXPORT(close) (sock_state[fd].accept[i].sock);
+        }
+    }
     WINC1500_EXPORT(close) (fd);
+    // Drops the receive buffer: a reply to a request still outstanding is discarded by the
+    // socket layer, since closing the socket ended its session.
+    sock_reset(fd, WINC_CONN_NONE);
+}
+
+// Wait for a socket event: returns false once the timeout has expired, otherwise waits
+// for the next interrupt and handles pending events. Waiting on MicroPython's event
+// handler rather than WFI lets a KeyboardInterrupt break out of a blocking call. With
+// a zero timeout this returns false straight away, for non-blocking calls.
+static bool winc_socket_wait(mp_uint_t tick_start, uint32_t timeout) {
+    if ((mp_hal_ticks_ms() - tick_start) >= timeout) {
+        return false;
+    }
+    mp_event_wait_ms(1);
+    m2m_wifi_handle_events(NULL);
+    return true;
+}
+
+// Keep a receive request outstanding on a connected stream socket whose buffer is
+// empty, so that data (or the peer closing) arrives without a blocking call.
+static int winc_socket_recv_start(int fd) {
+    winc_sock_state_t *s = &sock_state[fd];
+    winc_socket_buf_t *rx = sock_rx(fd);
+    if (rx == NULL || s->conn != WINC_CONN_DONE || s->rx_pending ||
+        s->error || rx->size || rx->closed) {
+        return SOCK_ERR_NO_ERROR;
+    }
+    rx->idx = 0;
+    // Zero timeout means the firmware waits forever: the request stays outstanding
+    // until data arrives, and the host side applies the socket's timeout.
+    int ret = WINC1500_EXPORT(recv) (fd, rx->buf, WINC_SOCKBUF_MAX_SIZE, 0);
+    if (ret == SOCK_ERR_NO_ERROR) {
+        s->rx_pending = true;
+    }
+    return ret;
+}
+
+int winc_socket_poll(int fd) {
+    if (!sock_valid(fd)) {
+        return WINC_POLL_NVAL;
+    }
+
+    winc_sock_state_t *s = &sock_state[fd];
+    winc_socket_buf_t *rx = sock_rx(fd);
+
+    // Handle pending events, then keep a receive outstanding for the next poll.
+    m2m_wifi_handle_events(NULL);
+    winc_socket_recv_start(fd);
+
+    int ret = 0;
+    if (!sock_is_stream(fd)) {
+        // Datagrams are received with blocking requests, so only sending is polled.
+        ret |= WINC_POLL_WR;
+    } else if (s->conn == WINC_CONN_FAILED || s->error) {
+        ret |= WINC_POLL_ERR;
+    } else {
+        if (s->accept_count || (rx != NULL && (rx->size || rx->closed))) {
+            ret |= WINC_POLL_RD;
+        }
+        if (s->conn == WINC_CONN_DONE) {
+            // The firmware doesn't report free transmit space, a send that finds the
+            // buffers full fails with EAGAIN.
+            ret |= WINC_POLL_WR;
+        }
+    }
+    return ret;
+}
+
+// Check that stream I/O can proceed on a socket.
+static int winc_socket_check_conn(int fd) {
+    if (!sock_valid(fd)) {
+        return SOCK_ERR_INVALID_ARG;
+    }
+    winc_sock_state_t *s = &sock_state[fd];
+    if (s->error) {
+        return s->error;
+    }
+    switch (s->conn) {
+        case WINC_CONN_DONE:
+            return SOCK_ERR_NO_ERROR;
+        case WINC_CONN_PENDING:
+            return SOCK_ERR_TIMEOUT;
+        case WINC_CONN_FAILED:
+            return WINC_SOCK_ERR_CONN_FAILED;
+        default:
+            // Datagram sockets don't need to connect.
+            return sock_is_stream(fd) ? WINC_SOCK_ERR_NOT_CONNECTED : SOCK_ERR_NO_ERROR;
+    }
 }
 
 int winc_socket_bind(int fd, sockaddr *addr) {
@@ -859,33 +1039,64 @@ int winc_socket_listen(int fd, uint32_t backlog) {
 }
 
 int winc_socket_accept(int fd, sockaddr *addr, int *fd_out, uint32_t timeout) {
-    accept_t acpt;
+    if (!sock_valid(fd)) {
+        return SOCK_ERR_INVALID_ARG;
+    }
 
     // Call accept and check HIF errors.
     int ret = WINC1500_EXPORT(accept) (fd, NULL, 0);
+    if (ret != SOCK_ERR_NO_ERROR) {
+        return ret;
+    }
 
-    if (ret == SOCK_ERR_NO_ERROR) {
-        // Do async request
-        ret = winc_async_request(SOCKET_MSG_ACCEPT, &acpt, timeout);
-
-        // Check async request status.
-        if (ret == SOCK_ERR_NO_ERROR && acpt.sock >= 0) {
-            *fd_out = acpt.sock;
-            *addr = *((sockaddr *) &acpt.addr);
+    // The firmware accepts connections by itself, wait for one to be queued.
+    winc_sock_state_t *s = &sock_state[fd];
+    mp_uint_t tick_start = mp_hal_ticks_ms();
+    m2m_wifi_handle_events(NULL);
+    while (s->accept_count == 0) {
+        if (!winc_socket_wait(tick_start, timeout)) {
+            return SOCK_ERR_TIMEOUT;
         }
     }
 
-    return ret;
+    winc_accepted_t a = s->accept[0];
+    s->accept_count--;
+    memmove(&s->accept[0], &s->accept[1], s->accept_count * sizeof(winc_accepted_t));
+
+    sockaddr_in *addr_in = (sockaddr_in *) addr;
+    memset(addr, 0, sizeof(*addr));
+    addr_in->sin_family = AF_INET;
+    addr_in->sin_port = a.port;
+    addr_in->sin_addr.s_addr = a.ip;
+    *fd_out = a.sock;
+    sock_reset(a.sock, WINC_CONN_DONE);
+    return SOCK_ERR_NO_ERROR;
 }
 
 int winc_socket_connect(int fd, sockaddr *addr, uint32_t timeout) {
-    int ret = WINC1500_EXPORT(connect) (fd, addr, sizeof(*addr));
-    if (ret == SOCK_ERR_NO_ERROR) {
-        // Do async request
-        ret = winc_async_request(SOCKET_MSG_CONNECT, &ret, timeout);
+    if (!sock_valid(fd)) {
+        return SOCK_ERR_INVALID_ARG;
     }
 
-    return ret;
+    winc_sock_state_t *s = &sock_state[fd];
+    if (s->conn == WINC_CONN_NONE) {
+        int ret = WINC1500_EXPORT(connect) (fd, addr, sizeof(*addr));
+        if (ret != SOCK_ERR_NO_ERROR) {
+            return ret;
+        }
+        s->conn = WINC_CONN_PENDING;
+    }
+
+    mp_uint_t tick_start = mp_hal_ticks_ms();
+    m2m_wifi_handle_events(NULL);
+    while (s->conn == WINC_CONN_PENDING) {
+        if (!winc_socket_wait(tick_start, timeout)) {
+            // In non-blocking mode the connection completes in the background.
+            return (timeout == 0) ? WINC_SOCK_ERR_INPROGRESS : SOCK_ERR_TIMEOUT;
+        }
+    }
+
+    return (s->conn == WINC_CONN_DONE) ? SOCK_ERR_NO_ERROR : WINC_SOCK_ERR_CONN_FAILED;
 }
 
 int winc_socket_send(int fd, const uint8_t *buf, uint32_t len, uint32_t timeout) {
@@ -893,17 +1104,18 @@ int winc_socket_send(int fd, const uint8_t *buf, uint32_t len, uint32_t timeout)
 
     int bytes = 0;
 
+    int ret = winc_socket_check_conn(fd);
+    if (ret != SOCK_ERR_NO_ERROR) {
+        return ret;
+    }
+
     while (bytes < len) {
-        // Do async request (clean out any messages - but ignore them).
-        int async_ret;
-        async_request_data = &async_ret;
-        async_request_done = false;
-        async_request_type = SOCKET_MSG_SEND;
+        // Handle pending events, send replies free transmit buffers.
         m2m_wifi_handle_events(NULL);
 
         // Split the packet into smaller ones.
         int n = OMV_MIN((len - bytes), SOCKET_BUFFER_MAX_LENGTH);
-        int ret = WINC1500_EXPORT(send) (fd, (uint8_t *) buf + bytes, n, 0);
+        ret = WINC1500_EXPORT(send) (fd, (uint8_t *) buf + bytes, n, 0);
 
         if (ret == SOCK_ERR_NO_ERROR) {
             bytes += n;
@@ -917,48 +1129,52 @@ int winc_socket_send(int fd, const uint8_t *buf, uint32_t len, uint32_t timeout)
         }
     }
 
-    return bytes;
+    // Nothing could be sent before the timeout (EAGAIN in non-blocking mode).
+    return (bytes || len == 0) ? bytes : SOCK_ERR_TIMEOUT;
 }
 
-int winc_socket_recv(int fd, uint8_t *buf, uint32_t len, winc_socket_buf_t *sockbuf, uint32_t timeout) {
-    if (sockbuf->size == 0) {
-        if (sockbuf->closed) {
+int winc_socket_recv(int fd, uint8_t *buf, uint32_t len, uint32_t timeout) {
+    mp_uint_t tick_start = mp_hal_ticks_ms();
+    m2m_wifi_handle_events(NULL);
+
+    for (;;) {
+        // Re-read each time, a callback run while waiting could close the socket.
+        winc_socket_buf_t *rx = sock_rx(fd);
+        if (rx == NULL) {
+            return SOCK_ERR_INVALID_ARG;
+        }
+
+        if (rx->size) {
+            uint32_t bytes = OMV_MIN(len, rx->size);
+            memcpy(buf, rx->buf + rx->idx, bytes);
+            rx->idx += bytes;
+            rx->size -= bytes;
+            if (rx->size == 0) {
+                // Request more data while the caller is busy with this.
+                winc_socket_recv_start(fd);
+            }
+            return bytes;
+        }
+
+        if (rx->closed) {
             // The peer has closed the connection, return EOF without another HIF request.
             return 0;
         }
 
-        // No buffered data.
-        sockbuf->idx = 0; // Reset sockbuf index.
-
-        int recv_bytes = 0;
-        // Set recv to the maximum possible packet size.
-        int ret = WINC1500_EXPORT(recv) (fd, sockbuf->buf, WINC_SOCKBUF_MAX_SIZE, timeout);
+        int ret = winc_socket_check_conn(fd);
         if (ret == SOCK_ERR_NO_ERROR) {
-            // Do async request
-            // sockbuf->size is the actual size of the recv'd packet.
-            // Note: Double timeout to ensure the socket function times out first.
-            ret = winc_async_request(SOCKET_MSG_RECV, &recv_bytes, timeout * 2);
+            ret = winc_socket_recv_start(fd);
         }
 
-        // Check received bytes returned from async request.
-        if (ret != SOCK_ERR_NO_ERROR || recv_bytes <= 0) {
-            int error = (ret != SOCK_ERR_NO_ERROR) ? ret : recv_bytes;
-            if (error == SOCK_ERR_NO_ERROR || error == SOCK_ERR_CONN_ABORTED) {
-                // Peer closed the connection, latch EOF and leave the socket open, like lwIP.
-                sockbuf->closed = true;
-                return 0;
-            }
-            return error;
+        // Wait for data, or for the connection to complete. A full HIF is retried.
+        if (ret != SOCK_ERR_NO_ERROR && ret != SOCK_ERR_TIMEOUT && ret != SOCK_ERR_BUFFER_FULL) {
+            return ret;
         }
 
-        sockbuf->size = recv_bytes;
+        if (!winc_socket_wait(tick_start, timeout)) {
+            return SOCK_ERR_TIMEOUT;
+        }
     }
-
-    uint32_t bytes = OMV_MIN(len, sockbuf->size);
-    memcpy(buf, sockbuf->buf + sockbuf->idx, bytes);
-    sockbuf->idx += bytes;
-    sockbuf->size -= bytes;
-    return bytes;
 }
 
 int winc_socket_sendto(int fd, const uint8_t *buf, uint32_t len, sockaddr *addr, uint32_t timeout) {
@@ -967,11 +1183,7 @@ int winc_socket_sendto(int fd, const uint8_t *buf, uint32_t len, sockaddr *addr,
     int bytes = 0;
 
     while (bytes < len) {
-        // Do async request (clean out any messages - but ignore them).
-        int async_ret;
-        async_request_data = &async_ret;
-        async_request_done = false;
-        async_request_type = SOCKET_MSG_SENDTO;
+        // Handle pending events, send replies free transmit buffers.
         m2m_wifi_handle_events(NULL);
 
         // Split the packet into smaller ones.
@@ -999,8 +1211,10 @@ int winc_socket_recvfrom(int fd, uint8_t *buf, uint32_t len, sockaddr *addr, uin
     // The firmware never replies to requests larger than the datagram it can deliver.
     len = OMV_MIN(len, WINC_MAX_DGRAM_SIZE);
 
+    // A zero timeout makes the firmware wait forever, and a reply after the host stopped
+    // waiting would land in a buffer the caller no longer owns. Use the shortest timeout.
     recv_from_t rfrom;
-    int ret = WINC1500_EXPORT(recvfrom) (fd, buf, len, timeout);
+    int ret = WINC1500_EXPORT(recvfrom) (fd, buf, len, timeout ? timeout : 1);
     if (ret == SOCK_ERR_NO_ERROR) {
         // Do async request
         // Note: Double timeout to ensure the socket function times out first.

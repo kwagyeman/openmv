@@ -178,13 +178,15 @@ def main():
                         help="Board/target name (e.g. MPS2_AN500)")
     parser.add_argument("--ldscript", required=True,
                         help="Path to port's .ld.S template")
+    parser.add_argument("--board-dir", default=None,
+                        help="Board config directory (default: boards/<board>)")
 
     # Strip leading '--' separator if present.
     args, cpp_flags = parser.parse_known_args()
     if cpp_flags and cpp_flags[0] == "--":
         cpp_flags = cpp_flags[1:]
 
-    board_dir = f"boards/{args.board}"
+    board_dir = (args.board_dir or f"boards/{args.board}").rstrip("/")
     cpp_flags += ["-DLINKER_SCRIPT", f"-Icommon", f"-I{board_dir}"]
 
     # 1. Parse board_config.h for define names (CPP resolves conditionals).

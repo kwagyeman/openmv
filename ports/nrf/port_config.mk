@@ -173,7 +173,7 @@ $(OMV_FIRM_OBJ): | MICROPYTHON
 # This target bulds the firmware.
 $(FIRMWARE): $(OMV_FIRM_OBJ)
 	$(ECHO) "GEN linker script"
-	$(PYTHON) $(TOOLS_DIR)/$(GENLINK) --board $(TARGET) \
+	$(PYTHON) $(TOOLS_DIR)/$(GENLINK) --board $(TARGET) --board-dir $(OMV_BOARD_CONFIG_DIR) \
         --ldscript ports/$(PORT)/$(LDSCRIPT).ld.S > $(BUILD)/$(LDSCRIPT).lds
 	$(CC) $(LDFLAGS) $(OMV_FIRM_OBJ) $(MPY_FIRM_OBJ) -o $(FW_DIR)/$(FIRMWARE).elf $(LIBS) -lgcc
 	$(OBJCOPY) -Oihex   $(FW_DIR)/$(FIRMWARE).elf $(FW_DIR)/$(FIRMWARE).hex

@@ -159,7 +159,7 @@ endif
 # This target builds the firmware.
 $(FIRMWARE): $(OMV_FIRM_OBJ)
 	$(ECHO) "GEN linker script"
-	$(PYTHON) $(TOOLS_DIR)/$(GENLINK) --board $(TARGET) \
+	$(PYTHON) $(TOOLS_DIR)/$(GENLINK) --board $(TARGET) --board-dir $(OMV_BOARD_CONFIG_DIR) \
         --ldscript ports/$(PORT)/$(LDSCRIPT).ld.S -- $(LDSCRIPT_FLAGS) > $(BUILD)/$(LDSCRIPT).lds
 	$(CC) $(LDFLAGS) $(OMV_FIRM_OBJ) -o $(FW_DIR)/$(FIRMWARE).elf $(LIBS) -lm
 	$(OBJCOPY) -Obinary $(FW_DIR)/$(FIRMWARE).elf $(FW_DIR)/$(FIRMWARE).bin

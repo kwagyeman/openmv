@@ -887,6 +887,21 @@ int winc_flash_verify(const char *path) {
     return 0;
 }
 
+// A host-interface error as an errno, so a failed request says why: the module out of
+// buffers (it stops taking requests while its memory is full) reads as ENOMEM, not -1.
+static int winc_hif_errno(int ret) {
+    switch (ret) {
+        case M2M_ERR_MEM_ALLOC:
+            return ENOMEM;
+        case M2M_ERR_TIME_OUT:
+            return ETIMEDOUT;
+        case M2M_ERR_BUS_FAIL:
+            return EIO;
+        default:
+            return EIO;
+    }
+}
+
 int winc_gethostbyname(const char *name, uint8_t *out_ip) {
     int ret;
     uint32_t ip = 0;
@@ -894,7 +909,7 @@ int winc_gethostbyname(const char *name, uint8_t *out_ip) {
     if (ret == SOCK_ERR_NO_ERROR) {
         ret = winc_async_request(0, &ip, WINC_REQUEST_TIMEOUT);
     } else {
-        return -1;
+        return winc_hif_errno(ret);
     }
 
     if (ip == 0) {

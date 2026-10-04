@@ -54,6 +54,18 @@ typedef struct _winc_obj_t {
 
 static winc_obj_t winc_obj = {{(mp_obj_type_t *) &mod_network_nic_type_winc}, false, WINC_MODE_STA};
 
+static int py_winc_mperrno(int32_t err);
+
+// A socket call that ran out of time: EAGAIN on a non-blocking socket (the caller polls
+// and retries), ETIMEDOUT on one with a timeout. Reporting EAGAIN for a real timeout made
+// a blocking TLS handshake retry the read forever -- mbedtls takes EAGAIN as "no data yet".
+static int py_winc_io_errno(mod_network_socket_obj_t *socket, int32_t err) {
+    if (err == SOCK_ERR_TIMEOUT && socket->timeout != 0) {
+        return MP_ETIMEDOUT;
+    }
+    return py_winc_mperrno(err);
+}
+
 static int py_winc_mperrno(int32_t err) {
     switch (err) {
         case SOCK_ERR_NO_ERROR:
@@ -504,7 +516,7 @@ static int py_winc_socket_connect(mod_network_socket_obj_t *socket, byte *ip, mp
 static mp_uint_t py_winc_socket_send(mod_network_socket_obj_t *socket, const byte *buf, mp_uint_t len, int *_errno) {
     int ret = winc_socket_send(socket->fileno, buf, len, socket->timeout);
     if (ret < 0) {
-        *_errno = py_winc_mperrno(ret);
+        *_errno = py_winc_io_errno(socket, ret);
         // The socket is Not closed on timeout.
         if (ret != SOCK_ERR_TIMEOUT) {
             py_winc_socket_close(socket);
@@ -525,7 +537,7 @@ static mp_uint_t py_winc_socket_recv(mod_network_socket_obj_t *socket, byte *buf
     }
     // NOTE: 0 means the peer closed the connection, the socket is left open like lwIP.
     if (ret < 0) {
-        *_errno = py_winc_mperrno(ret);
+        *_errno = py_winc_io_errno(socket, ret);
         // The socket is Not closed on timeout.
         if (ret != SOCK_ERR_TIMEOUT) {
             py_winc_socket_close(socket);
@@ -540,7 +552,7 @@ static mp_uint_t py_winc_socket_sendto(mod_network_socket_obj_t *socket,
     MAKE_SOCKADDR(addr, ip, port)
     int ret = winc_socket_sendto(socket->fileno, buf, len, &addr, socket->timeout);
     if (ret < 0) {
-        *_errno = py_winc_mperrno(ret);
+        *_errno = py_winc_io_errno(socket, ret);
         // The socket is Not closed on timeout.
         if (ret != SOCK_ERR_TIMEOUT) {
             py_winc_socket_close(socket);
@@ -556,7 +568,7 @@ static mp_uint_t py_winc_socket_recvfrom(mod_network_socket_obj_t *socket,
     int ret = winc_socket_recvfrom(socket->fileno, buf, len, &addr, socket->timeout);
     UNPACK_SOCKADDR((&addr), ip, *port);
     if (ret < 0) {
-        *_errno = py_winc_mperrno(ret);
+        *_errno = py_winc_io_errno(socket, ret);
         // The socket is Not closed on timeout.
         if (ret != SOCK_ERR_TIMEOUT) {
             py_winc_socket_close(socket);

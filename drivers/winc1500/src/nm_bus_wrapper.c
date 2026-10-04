@@ -38,7 +38,9 @@
 #include "bus_wrapper/include/nm_bus_wrapper.h"
 
 #define NM_BUS_MAX_TRX_SZ   (4096)
-#define NM_BUS_SPI_TIMEOUT  (1000)
+// A transfer is at most NM_BUS_MAX_TRX_SZ bytes, about 1 ms at 40 MHz. A failed one
+// (an RX overrun) waits out this timeout, so keep it short.
+#define NM_BUS_SPI_TIMEOUT  (50)
 
 static omv_spi_t spi_bus;
 
@@ -88,7 +90,12 @@ static sint8 nm_bus_rw(uint8 *txbuf, uint8 *rxbuf, uint16 size) {
     }
 
     omv_gpio_write(spi_bus.cs, 0);
-    omv_spi_transfer_start(&spi_bus, &spi_xfer);
+    // Transfers are polled, so an interrupt that outlasts the SPI's RX FIFO (a few us at
+    // 40 MHz, e.g. while the camera is capturing) overruns it and loses bytes. Report it:
+    // the SPI protocol layer then resets the module's SPI and retries the transaction.
+    if (omv_spi_transfer_start(&spi_bus, &spi_xfer) != 0) {
+        result = M2M_ERR_BUS_FAIL;
+    }
     omv_gpio_write(spi_bus.cs, 1);
 
     return result;

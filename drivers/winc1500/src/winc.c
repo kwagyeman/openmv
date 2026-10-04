@@ -595,6 +595,12 @@ int winc_init(winc_mode_t winc_mode) {
     // Use DHCP by default.
     use_static_ip = false;
 
+    // The module is reset below, which drops any connection. These flags outlive both
+    // that and a soft reset, so clear them or isconnected() reports a stale connection.
+    ip_obtained = false;
+    wlan_connected = false;
+    connected_sta_ip = 0;
+
     // Reset ifconfig info.
     memset(&ifconfig, 0, sizeof(winc_ifconfig_t));
 

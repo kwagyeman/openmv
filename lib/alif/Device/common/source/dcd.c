@@ -618,6 +618,25 @@ static void _dcd_handle_devt(uint8_t evt, uint16_t info)
         case DEVT_USBRST: {
             _xfer_cfgd = false;
 
+            // EP0 is re-armed for SETUP when a status stage completes. If the reset landed in
+            // the middle of a control transfer that never happens, so drop what is left of
+            // the transfer and get ready for SETUP here.
+            _sts_in = 0;
+            _ctrl_long_data = false;
+            RTSS_InvalidateDCache_by_Addr(_xfer_trb, 2 * sizeof(_xfer_trb[0]));
+            if (!(_xfer_trb[0][3] & 1) || TRBCTL_CTL_SETUP != ((_xfer_trb[0][3] >> 4) & 0x3F)) {
+                for (uint8_t ep = 0; ep < 2; ep++) {
+                    if (_xfer_trb[ep][3] & 1) { // HWO, still owned by the controller
+                        ugbl->guctl2_b.rst_actbitlater = 1;
+                        _dcd_cmd_wait(ep, CMDTYP_DEPENDXFER, ep);
+                        ugbl->guctl2_b.rst_actbitlater = 0;
+                    }
+                }
+                // Stalling EP0 returns the controller to the SETUP stage.
+                _dcd_cmd_wait(0, CMDTYP_DEPSSTALL, 0);
+                _dcd_start_xfer(0, _ctrl_buf, 8, TRBCTL_CTL_SETUP);
+            }
+
             // [TODO] issue depcstall for any ep in stall mode
             udev->dcfg_b.devaddr = 0;
             LOG("USB reset");
